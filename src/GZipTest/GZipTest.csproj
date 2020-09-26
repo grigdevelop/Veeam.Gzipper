@@ -5,4 +5,9 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Veeam.Gzipper.Cmd\Veeam.Gzipper.Cmd.csproj" />
+    <ProjectReference Include="..\Veeam.Gzipper.Core\Veeam.Gzipper.Core.csproj" />
+  </ItemGroup>
+
 </Project>

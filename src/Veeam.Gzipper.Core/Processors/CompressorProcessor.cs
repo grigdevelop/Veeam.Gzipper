@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using Veeam.Gzipper.Core.Constants;
@@ -21,42 +23,33 @@ namespace Veeam.Gzipper.Core.Processors
 
         public void ProceedSync(GzipperInputData input)
         {
-            using(var sourceFileStream = _streamFactory.CreateSourceFileStream(input.SourceOrTargetFilePath))
+            // stream for reading from source
+            using var sourceFileStream = _streamFactory.CreateSourceFileStream(input.SourceOrTargetFilePath);
+
+            // streams for compressing
+            using var targetFileStream = _streamFactory.CreateTargetFileStream(input.ZipFilePath);
+            using var gzipStream = new GZipStream(targetFileStream, CompressionMode.Compress);
+
+            // gzip not support async writing. create synced stream 
+            var safeStream = Stream.Synchronized(gzipStream);
+
+            // write the source size at the beginning of compressed file
+            var sizeBuffer = BitConverter.GetBytes(sourceFileStream.Length);
+            safeStream.Write(sizeBuffer, 0, sizeBuffer.Length);
+
+            // write empty bytes in case if size of last partial of source data less then chunk size
+            //var emptyBuffer = new byte[sizeBuffer.Length % (ProcessorConstants.CHUNK_SIZE + Chunk.INDEX_SIZE)];
+            //safeStream.Write(emptyBuffer, 0, emptyBuffer.Length);
+
+            // start async reading from the source by chunks. Chunks contains original position of partial data
+            using var chunkReader = new StreamChunkReader(sourceFileStream, ProcessorConstants.CHUNK_SIZE, ProcessorConstants.AVAILABLE_MEMEORY);
+            chunkReader.Read(chunk =>
             {
-                using(var targetFileStream = _streamFactory.CreateTargetFileStream(input.SourceOrTargetFilePath))
-                {
-                    using(var gzipStream = new GZipStream(targetFileStream, CompressionMode.Compress))
-                    {
+                //Console.WriteLine(chunk.Data.Skip(4));
+                safeStream.Write(chunk.Data, 0, chunk.Data.Length);
+            });
 
-                        var sourceSize = sourceFileStream.Length;
-                        if (sourceSize <= DataChunk.CHUNK_SIZE) // we only need one thread to read the data
-                        {
-
-                        }
-                        else
-                        {
-                            // let's calculate how many threads we need to work asynchronously
-                            var maxThreads = (int)sourceSize / DataChunk.CHUNK_SIZE; // last data size will be sourceSize % CHUNK_SIZE
-                            var bytesLeft = sourceSize % DataChunk.CHUNK_SIZE;
-                            if (bytesLeft > 0) maxThreads += 1;
-                            var activeThreadsLimit = ProcessorConstants.AVAILABLE_MEMEORY / DataChunk.CHUNK_SIZE;
-                            activeThreadsLimit = Math.Min(activeThreadsLimit, maxThreads);
-
-                            var semaphore = new Semaphore(activeThreadsLimit, activeThreadsLimit);
-
-                            // buffer
-                            var buffer = new byte[20];
-                        }
-
-
-                    }
-                }
-            }
-        }
-
-        private void StartReadingData()
-        {
-            
+            //Thread.Sleep(5000);
         }
     }
 }
