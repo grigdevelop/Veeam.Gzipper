@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
+using System.Threading;
 using Veeam.Gzipper.Core.Constants;
 using Veeam.Gzipper.Core.Factories;
 using Veeam.Gzipper.Core.Types;
@@ -38,19 +39,35 @@ namespace Veeam.Gzipper.Core.Processors
 
             // count how many threads executed
             var executedCount = 0;
+            new Thread(() => Per(ref executedCount, chunkReader)).Start();
 
             chunkReader.Read(chunk =>
             {
                 // TODO: try async write with sync context
                 safeStream.Write(chunk.Data, 0, chunk.Data.Length);
+                //GC.SuppressFinalize(chunk);
                 executedCount++;
             });
+
+            
 
             // wait until all threads executed
             while (executedCount < chunkReader.MaxThreadsLimit)
             {
 
             }
+        }
+
+        void Per(ref int executedCount, StreamChunkReader reader)
+        {
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.Write("                                                                            ");
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.Write(((executedCount / (double)reader.MaxThreadsLimit) * 100.0) + "%");
+
+            Thread.Sleep(100);
+            if (executedCount < reader.MaxThreadsLimit)
+                Per(ref executedCount, reader);
         }
     }
 }

@@ -7,11 +7,11 @@ namespace Veeam.Gzipper.Core.Utilities
 {
     public class ChunkedData
     {
-        public int Position { get; }
+        public long Position { get; }
 
         public byte[] Data { get; }
 
-        public ChunkedData(int position, byte[] data)
+        public ChunkedData(long position, byte[] data)
         {
             Position = position;
             Data = data;
@@ -90,7 +90,7 @@ namespace Veeam.Gzipper.Core.Utilities
                 }
 
                 // this call can be async. We don't need to wait 
-                callback.Invoke(new ChunkedData(index * ProcessorConstants.CHUNK_SIZE, currentBuffer));
+                callback.Invoke(new ChunkedData((long)index * ProcessorConstants.CHUNK_SIZE, currentBuffer));
 
                 // read next index
                 read = _stream.Read(indexBuffer, 0, indexBuffer.Length);

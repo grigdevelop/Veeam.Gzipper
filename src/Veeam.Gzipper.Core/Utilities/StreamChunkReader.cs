@@ -5,17 +5,17 @@ namespace Veeam.Gzipper.Core.Utilities
 {
     public class Chunk
     {
-        public byte[] Data { get; }
+        public byte[] Data { get; private set; }
 
-        public int Index { get; }
+        public long Index { get; }
 
-        public const int INDEX_SIZE = 4; // 4 bytes for integer
+        public const int INDEX_SIZE = 8; // 8 bytes for long
 
-        private Chunk(byte[] data, int index)
+        private Chunk(byte[] data, long index)
         {
             Index = index;
             var bytes = BitConverter.GetBytes(index);
-            bytes.CopyTo(data, 0); // first 4 bytes for index
+            bytes.CopyTo(data, 0);
 
             Data = data;
 
@@ -27,10 +27,15 @@ namespace Veeam.Gzipper.Core.Utilities
             bytes.CopyTo(Data, 0);
         }
 
-        public Chunk(int bufferSize, int index) :
+        public Chunk(int bufferSize, long index) :
             this(new byte[bufferSize + INDEX_SIZE], index)
         {
         }
+
+        //~Chunk()
+        //{
+        //    this.Data = null;
+        //}
     }
 
     public class StreamChunkReader : IDisposable
@@ -44,7 +49,7 @@ namespace Veeam.Gzipper.Core.Utilities
         public int MaxThreadsLimit => _maxThreadsLimit;
 
 
-        public StreamChunkReader(Stream stream, int bufferSize, int allocatedMemoryLimitSize)
+        public StreamChunkReader(Stream stream, int bufferSize, long allocatedMemoryLimitSize)
         {
             BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
             _bufferSize = bufferSize;
@@ -55,7 +60,7 @@ namespace Veeam.Gzipper.Core.Utilities
             _maxThreadsLimit = maxThreadsLimit;
 
             // count how many threads will work at time
-            var actualThreadsLimit = allocatedMemoryLimitSize / bufferSize;
+            var actualThreadsLimit = (int)(allocatedMemoryLimitSize / bufferSize);
             if (actualThreadsLimit == 0) actualThreadsLimit++;
             _actualThreadsLimit = actualThreadsLimit;
         }
@@ -70,7 +75,7 @@ namespace Veeam.Gzipper.Core.Utilities
                 var asyncResult = BaseStream.BeginRead(chunk.Data, Chunk.INDEX_SIZE, _bufferSize, null!, null);
 
                 // before end reading set position
-                BaseStream.Seek(i * _bufferSize, SeekOrigin.Begin);
+                BaseStream.Seek((long)i * _bufferSize, SeekOrigin.Begin);
                 var read = BaseStream.EndRead(asyncResult);
                 if (read < _bufferSize)
                 {
