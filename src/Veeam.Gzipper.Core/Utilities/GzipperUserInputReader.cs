@@ -17,20 +17,14 @@ namespace Veeam.Gzipper.Core.Utilities
         public GzipperInputData ParseUserInputData(string[] args)
         {
             var compressDecompress = args.Length == 0 ? _inOut.ReadLine(MessageConstants.EnterCompressionMethodMessage) : args[0];
+            var sourcePath = args.Length < 2 ? _inOut.ReadLine(MessageConstants.EnterSourceMessage) : args[1];
+            var targetPath = args.Length < 3 ? _inOut.ReadLine(MessageConstants.EnterTargetMessage) : args[2];
             switch (compressDecompress)
             {
                 case "compress":
-                    {
-                        var sourcePath = args.Length < 2 ? _inOut.ReadLine(MessageConstants.EnterSourceMessage) : args[1];
-                        var zipPath = args.Length < 3 ? _inOut.ReadLine(MessageConstants.EnterTargetMessage) : args[2];
-                        return new GzipperInputData(GzipperAction.Compress, zipPath, sourcePath);
-                    }
+                    return new GzipperInputData(GzipperAction.Compress, sourcePath, targetPath);
                 case "decompress":
-                    {
-                        var zipPath = args.Length < 2 ? _inOut.ReadLine(MessageConstants.EnterSourceMessage) : args[1];
-                        var targetPath = args.Length < 3 ? _inOut.ReadLine(MessageConstants.EnterTargetMessage) : args[2];
-                        return new GzipperInputData(GzipperAction.Decompress, zipPath, targetPath);
-                    }
+                    return new GzipperInputData(GzipperAction.Decompress, sourcePath, targetPath);
                 default:
                     throw new InvalidOperationException($"Unknown '{compressDecompress}' entered.");
             }

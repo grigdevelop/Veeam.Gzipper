@@ -2,7 +2,7 @@
 
 namespace Veeam.Gzipper.Core.Factories
 {
-    public class CompressorStreamFactory : ICompressorStreamFactory
+    public class CompressorStreamFactory : IStreamFactory
     {
         public Stream CreateSourceFileStream(string sourceFilePath)
         {

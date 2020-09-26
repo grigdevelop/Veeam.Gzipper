@@ -41,6 +41,8 @@ namespace Veeam.Gzipper.Core.Utilities
 
         public Stream BaseStream { get; }
 
+        public int MaxThreadsLimit => _maxThreadsLimit;
+
 
         public StreamChunkReader(Stream stream, int bufferSize, int allocatedMemoryLimitSize)
         {
@@ -83,7 +85,7 @@ namespace Veeam.Gzipper.Core.Utilities
 
             // StartSync part itself will work synchronously
             // But for handling callbacks need additional functionality
-            while (threadsDone != _maxThreadsLimit)
+            while (threadsDone < _maxThreadsLimit)
             {
 
             }

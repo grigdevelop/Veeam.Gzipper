@@ -5,7 +5,7 @@ namespace Veeam.Gzipper.Core.Factories
     /// <summary>
     /// Abstraction for getting compression streams
     /// </summary>
-    public interface ICompressorStreamFactory
+    public interface IStreamFactory
     {
         /// <summary>
         /// Create a stream for reading source data

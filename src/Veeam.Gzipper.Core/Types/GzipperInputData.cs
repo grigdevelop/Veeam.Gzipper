@@ -7,20 +7,20 @@ namespace Veeam.Gzipper.Core.Types
     {
         public GzipperAction Action { get; }
 
-        public string ZipFilePath { get; }
+        public string SourceFilePath { get; }
 
-        public string SourceOrTargetFilePath { get; }
+        public string TargetFilePath { get; }
 
-        public GzipperInputData(GzipperAction action, string zipFilePath, string sourceOrTargetFilePath)
+        public GzipperInputData(GzipperAction action, string sourceFilePath, string targetFilePath)
         {
-            if (string.IsNullOrEmpty(zipFilePath))
-                throw new InvalidDataException(nameof(zipFilePath));
-            if (string.IsNullOrEmpty(sourceOrTargetFilePath))
-                throw new InvalidDataException(nameof(sourceOrTargetFilePath));
+            if (string.IsNullOrEmpty(sourceFilePath))
+                throw new InvalidDataException(nameof(sourceFilePath));
+            if (string.IsNullOrEmpty(targetFilePath))
+                throw new InvalidDataException(nameof(targetFilePath));
 
             Action = action;
-            ZipFilePath = zipFilePath;
-            SourceOrTargetFilePath = sourceOrTargetFilePath;
+            SourceFilePath = sourceFilePath;
+            TargetFilePath = targetFilePath;
         }
     }
 }
