@@ -10,6 +10,7 @@
 
 #### Как работает?
 **Архивация** - При сжатии программа асинхронно начинает читать данные из разных точек файла, при этом в каждом потоке сохраняя соответствующий индекс. Первые 8 байт архивного файла занимает *размер оригинального файла*. Вторые 8 байт занимает *размер доступной оперативной памяти* при архивации. Она используется для того, чтобы при изменении настроек программы ( размера доступной памяти ) при разархивации программа смогла вычислять размер кусков потока, которая была применена во время архивации со старыми настройками. Запись в поток архива производиться синхронно, из за специфики алгоритма сжатия который использует класс `GZipStream`. 
+
 **Разархивация** - При разархивации чтение данных происходит последовательно. Однако их обработка выполняется параллельно. С помощью индексов сохраненных при архивации метод вычисляет изначальную позицию данных и записывает в поток в соответствующей позиции. 
 
 #### Производительность. Сравниваем с WinRAR ( средний уровень сжатие файла ).
@@ -25,11 +26,16 @@
 
 #### Общая архитектура проекта
 [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core) - Содержит основной, платформа-независимый функционал. 
+
 [Veeam.Gzipper.Cmd](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Cmd) - Реализация интерфейсов [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core)  для консольных приложений. 
+
 [Veeam.Gzipper.Tests](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Tests) - Юнит-тесты для классов библиотеки [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core).
+
 [GZipTest](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/GZipTest) - Консольное приложения для архивирования и де-архивирования файлов. Использует библиотеки классов [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core) и [Veeam.Gzipper.Cmd](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Cmd). 
 
 #### Структура реализации проекта и описание основных классов 
 [SyncLimitedThreads](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Threads/Limitations/SyncLimitedThreads.cs) - основной класс для решения задачи с потоками. Позволяет асинхронно запускать несколько потоков, а также контролировать количество активных потоков. При исключениях ошибки из созданных потоков передаются к вызывающему потоку, активные потоки получают запрос *Interrupt* для выхода из метода с помощи класса [StlInterrupt](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Threads/Limitations/StlInterrupt.cs), а потоки которые в ожидании далее не вызываться. 
+
 [StreamChunkReader](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Streams/StreamChunkReader.cs) - класс для чтения данных из стрима кусками байтовых массивов из разных позиций в многопоточном режиме. 
+
 [ChunkedStreamReader](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Streams/ChunkedStreamReader.cs) - класс для для последовательного чтения и многопоточной обработки данных в виде кусков байтовых массивов из стрима ранее записанного с помощью класса [StreamChunkReader](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Streams/StreamChunkReader.cs). 
