@@ -29,13 +29,18 @@
 
 #### ќбща€ архитектура проекта
 [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core) - —одержит основной, платформа-независимый функционал. 
+
 [Veeam.Gzipper.Cmd](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Cmd) - –еализаци€ интерфейсов [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core)  дл€ консольных приложений. 
+
 [Veeam.Gzipper.Tests](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Tests) - ёнит-тесты дл€ классов библиотеки [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core).
+
 [GZipTest](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/GZipTest) -  онсольное приложени€ дл€ архивировани€ и де-архивировани€ файлов. »спользует библиотеки классов [Veeam.Gzipper.Core](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Core) и [Veeam.Gzipper.Cmd](https://github.com/grigdevelop/Veeam.Gzipper/tree/master/src/Veeam.Gzipper.Cmd). 
 
 #### —труктура реализации проекта и описание основных классов 
 [SyncLimitedThreads](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Threads/Limitations/SyncLimitedThreads.cs) - основной класс дл€ решени€ задачи с потоками. ѕозвол€ет асинхронно запускать несколько потоков, а также контролировать количество активных потоков. ѕри исключени€х ошибки из созданных потоков передаютс€ к вызывающему потоку, активные потоки получают запрос *Interrupt* дл€ выхода из метода с помощи класса [StlInterrupt](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Threads/Limitations/StlInterrupt.cs), а потоки которые в ожидании далее не вызыватьс€. 
+
 [StreamChunkReader](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Streams/StreamChunkReader.cs) - класс дл€ чтени€ данных из стрима кусками байтовых массивов из разных позиций в многопоточном режиме. 
+
 [ChunkedStreamReader](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Streams/ChunkedStreamReader.cs) - класс дл€ дл€ последовательного чтени€ и многопоточной обработки данных в виде кусков байтовых массивов из стрима ранее записанного с помощью класса [StreamChunkReader](https://github.com/grigdevelop/Veeam.Gzipper/blob/master/src/Veeam.Gzipper.Core/Streams/StreamChunkReader.cs). 
 
 
