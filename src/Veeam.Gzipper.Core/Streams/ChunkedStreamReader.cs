@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Streams.Types;
+using Veeam.Gzipper.Core.Threads.Limitations;
 
 namespace Veeam.Gzipper.Core.Streams
 {
@@ -59,13 +60,15 @@ namespace Veeam.Gzipper.Core.Streams
             // count how many threads will work at time
             var actualThreadsLimit = (int)(_settings.AvailableMemorySize / _settings.ChunkSize);
             if (actualThreadsLimit == 0) actualThreadsLimit++;
+            if (actualThreadsLimit > maxThreadsCount) actualThreadsLimit = maxThreadsCount;
 
             var buffer = new byte[Chunk.INDEX_SIZE + _settings.ChunkSize];
 
             // limit active threads and chunks count by semaphore
-            var semaphore = new Semaphore(actualThreadsLimit, actualThreadsLimit);
-
-            for (var i = 0; i < maxThreadsCount; i++)
+            var slt = new SyncLimitedThreads(state =>
+            {
+                callback.Invoke((ChunkedData)state.SyncResult); // sync method
+            }, actualThreadsLimit, maxThreadsCount, () =>
             {
                 _stream.Read(buffer, 0, buffer.Length);
                 var index = BitConverter.ToInt64(buffer!, 0);
@@ -77,13 +80,31 @@ namespace Veeam.Gzipper.Core.Streams
                     query = query.Take(leftSize);
                 }
                 var chunk = new ChunkedData(index * _settings.ChunkSize, query.ToArray());
-                new Thread(() =>
-                {
-                    semaphore.WaitOne();
-                    callback.Invoke(chunk); // sync method
-                    semaphore.Release();
-                }).Start();
-            }
+                return chunk;
+            });
+            slt.StartSync();
+
+            //var semaphore = new Semaphore(actualThreadsLimit, actualThreadsLimit);
+
+            //for (var i = 0; i < maxThreadsCount; i++)
+            //{
+            //    _stream.Read(buffer, 0, buffer.Length);
+            //    var index = BitConverter.ToInt64(buffer!, 0);
+            //    var query = buffer.Skip(Chunk.INDEX_SIZE);
+
+            //    if (index < 0)
+            //    {
+            //        index = -index;
+            //        query = query.Take(leftSize);
+            //    }
+            //    var chunk = new ChunkedData(index * _settings.ChunkSize, query.ToArray());
+            //    new Thread(() =>
+            //    {
+            //        semaphore.WaitOne();
+            //        callback.Invoke(chunk); // sync method
+            //        semaphore.Release();
+            //    }).Start();
+            //}
 
         }
 

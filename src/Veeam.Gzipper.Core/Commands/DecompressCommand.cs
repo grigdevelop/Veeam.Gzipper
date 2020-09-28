@@ -23,8 +23,6 @@ namespace Veeam.Gzipper.Core.Commands
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        private static object l = new object();
-
         public void StartSync(UserInputData input)
         {
             // create source streams
@@ -42,32 +40,51 @@ namespace Veeam.Gzipper.Core.Commands
 
             // count how many thread executed
             var executed = 0;
-            new Thread(() => ShowPercentage(ref executed, chunkReader)).Start();
 
-            chunkReader.ReadAll(chunk =>
+            // monitor progress
+            var progressThread = new Thread(() => ShowProgress(ref executed, chunkReader));
+            progressThread.Start();
+
+            var safeStream = Stream.Synchronized(targetStream);
+
+            try
             {
-                targetStream.Seek(chunk.Position, SeekOrigin.Begin);
-                targetStream.Write(chunk.Data, 0, chunk.Data.Length);
-                executed++;
-            });
+                chunkReader.ReadAll(chunk =>
+                {
+                    safeStream.Seek(chunk.Position, SeekOrigin.Begin);
+                    safeStream.Write(chunk.Data, 0, chunk.Data.Length);
 
-            // wait until all threads executed
-            while (executed < chunkReader.MaxThreadsCount)
+                    executed++;
+                });
+
+                // wait until all threads executed
+                while (executed < chunkReader.MaxThreadsCount)
+                {
+
+                }
+            }
+            finally
             {
-
+                progressThread.Interrupt();
             }
 
             _logger.InfoStatic("100 %\n\n");
         }
 
 
-        private void ShowPercentage(ref int executedCount, ChunkedStreamReader reader)
+        private void ShowProgress(ref int executedCount, ChunkedStreamReader reader)
         {
-
-            while (executedCount < reader.MaxThreadsCount)
+            try
             {
-                _logger.InfoStatic(Math.Round((executedCount / (double)reader.MaxThreadsCount) * 100.0, 2) + " %");
-                Thread.Sleep(100);
+                while (executedCount < reader.MaxThreadsCount)
+                {
+                    _logger.InfoStatic(Math.Round((executedCount / (double)reader.MaxThreadsCount) * 100.0, 2) + " %");
+                    Thread.Sleep(100);
+                }
+            }
+            catch (ThreadInterruptedException)
+            {
+                // ignore ThreadInterruptedException
             }
         }
     }

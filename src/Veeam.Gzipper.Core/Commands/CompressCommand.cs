@@ -51,30 +51,46 @@ namespace Veeam.Gzipper.Core.Commands
 
             // count how many threads executed
             var executedCount = 0;
-            new Thread(() => ShowPercentage(ref executedCount, chunkReader)).Start();
 
-            chunkReader.Read(chunk =>
+            // monitor progress
+            var progressThread = new Thread(() => ShowProgress(ref executedCount, chunkReader));
+            progressThread.Start();
+
+            try
             {
-                // TODO: try async write with sync context
-                safeStream.Write(chunk.Data, 0, chunk.Data.Length);
-                executedCount++;
-            });
+                chunkReader.Read(chunk =>
+                {
+                    safeStream.Write(chunk.Data, 0, chunk.Data.Length);
+                    executedCount++;
+                });
 
-            // wait until all threads executed
-            while (executedCount < chunkReader.MaxThreadsLimit)
+                // wait until all threads executed
+                while (executedCount < chunkReader.MaxThreadsLimit)
+                {
+
+                }
+            }
+            finally
             {
-
+                progressThread.Interrupt();
             }
 
             _logger.InfoStatic("100 %\n\n");
         }
 
-        private void ShowPercentage(ref int executedCount, StreamChunkReader reader)
+        private void ShowProgress(ref int executedCount, StreamChunkReader reader)
         {
-            while (executedCount < reader.MaxThreadsLimit)
+            try
             {
-                _logger.InfoStatic(Math.Round((executedCount / (double)reader.MaxThreadsLimit) * 100.0, 2) + " %");
-                Thread.Sleep(100);
+                while (executedCount < reader.MaxThreadsLimit)
+                {
+                    _logger.InfoStatic(Math.Round((executedCount / (double)reader.MaxThreadsLimit) * 100.0, 2) + " %");
+                    Thread.Sleep(100);
+                }
+            }
+            catch (ThreadInterruptedException)
+            {
+                // ignore ThreadInterruptedException
             }
         }
     }

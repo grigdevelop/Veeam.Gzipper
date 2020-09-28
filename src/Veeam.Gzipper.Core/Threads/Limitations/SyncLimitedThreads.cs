@@ -8,13 +8,14 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
     {
         private readonly object _syncLock = new object();
 
-        private readonly Action<int> _callback;
+        private readonly Action<SltState> _callback;
         private readonly int _maxCount;
+        private readonly Func<object> _syncBeforeCallback;
         private readonly int _activeCount;
 
         private bool _started;
 
-        public SyncLimitedThreads(Action<int> callback, int activeCount, int maxCount)
+        public SyncLimitedThreads(Action<SltState> callback, int activeCount, int maxCount, Func<object> syncBeforeCallback = null)
         {
             _callback = callback ?? throw new ArgumentNullException(nameof(callback));
 
@@ -25,6 +26,7 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
 
             _activeCount = activeCount;
             _maxCount = maxCount;
+            _syncBeforeCallback = syncBeforeCallback;
         }
 
         /// <summary>
@@ -53,7 +55,9 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
                     }
 
                     // start a thread with a new state
-                    var state = new SltState(threads, interrupt, i);
+                    object syncResult = null;
+                    if (_syncBeforeCallback != null) syncResult = _syncBeforeCallback();
+                    var state = new SltState(threads, interrupt, i, syncResult);
                     thread.Start(state);
 
                     while (threads.Count >= _activeCount)
@@ -82,7 +86,7 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
             try
             {
 
-                _callback.Invoke(state.Index);
+                _callback.Invoke(state);
                 state.Release();
             }
             catch (ThreadInterruptedException)

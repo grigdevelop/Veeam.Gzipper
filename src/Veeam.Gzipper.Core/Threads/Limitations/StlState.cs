@@ -13,14 +13,20 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
         private readonly StlInterrupt _ic;
 
         /// <summary>
+        /// Gets the sync method result or null
+        /// </summary>
+        public object SyncResult { get; }
+
+        /// <summary>
         /// Gets the thread identifier based on 0 ( from 0 to max threads count )
         /// </summary>
         public int Index { get; }
 
-        public SltState(ConcurrentDictionary<Thread, sbyte> threads, StlInterrupt ic, int index)
+        public SltState(ConcurrentDictionary<Thread, sbyte> threads, StlInterrupt ic, int index, object syncResult = null)
         {
             _threads = threads;
             _ic = ic;
+            SyncResult = syncResult;
             Index = index;
         }
 

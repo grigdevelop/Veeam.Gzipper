@@ -44,14 +44,14 @@ namespace Veeam.Gzipper.Core.Utilities
         public void Read(Action<Chunk> callback)
         {
             var threadsDone = 0;
-            var slt = new SyncLimitedThreads(i =>
+            var slt = new SyncLimitedThreads(state=>
             {
                 // create buffer and start reading
-                var chunk = new Chunk(_bufferSize, i);
+                var chunk = new Chunk(_bufferSize, state.Index);
                 var asyncResult = BaseStream.BeginRead(chunk.Data, Chunk.INDEX_SIZE, _bufferSize, null!, null);
 
                 // before end reading set position
-                BaseStream.Seek((long)i * _bufferSize, SeekOrigin.Begin);
+                BaseStream.Seek((long)state.Index * _bufferSize, SeekOrigin.Begin);
                 var read = BaseStream.EndRead(asyncResult);
                 if (read < _bufferSize)
                 {
