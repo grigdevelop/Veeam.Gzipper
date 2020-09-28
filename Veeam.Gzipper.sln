@@ -16,7 +16,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3EDF6562-EFF6-4B26-A888-57B253063483}"
 	ProjectSection(SolutionItems) = preProject
 		ReadMe.md = ReadMe.md
-		..\..\..\Downloads\veeam.png = ..\..\..\Downloads\veeam.png
+		veeam.png = veeam.png
 	EndProjectSection
 EndProject
 Global
