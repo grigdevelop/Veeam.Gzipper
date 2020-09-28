@@ -6,7 +6,7 @@ using Veeam.Gzipper.Core.Threads.Limitations;
 
 namespace Veeam.Gzipper.Core.Utilities
 {
-    
+
 
     public class StreamChunkReader : IDisposable
     {
@@ -18,21 +18,27 @@ namespace Veeam.Gzipper.Core.Utilities
 
         public int MaxThreadsLimit => _maxThreadsLimit;
 
+        public long SourceSize { get; }
+
 
         public StreamChunkReader(Stream stream, int bufferSize, long allocatedMemoryLimitSize)
         {
             BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
             _bufferSize = bufferSize;
 
+            SourceSize = BaseStream.Length;
+            if (SourceSize == 0)
+                throw new NotSupportedException("Unable to compress empty source");
+
             // count how many threads will work totally
-            var maxThreadsLimit = (int)(BaseStream.Length / bufferSize);
+            var maxThreadsLimit = (int)(SourceSize / bufferSize);
             if (BaseStream.Length % bufferSize > 0) maxThreadsLimit++;
             _maxThreadsLimit = maxThreadsLimit;
 
             // count how many threads will work at time
             var actualThreadsLimit = (int)(allocatedMemoryLimitSize / bufferSize);
             if (actualThreadsLimit == 0) actualThreadsLimit++;
-            _actualThreadsLimit = actualThreadsLimit;
+            _actualThreadsLimit = actualThreadsLimit > _maxThreadsLimit ? _maxThreadsLimit : actualThreadsLimit;
         }
 
         public void Read(Action<Chunk> callback)

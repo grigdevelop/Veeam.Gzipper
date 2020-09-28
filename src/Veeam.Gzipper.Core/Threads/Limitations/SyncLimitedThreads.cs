@@ -21,7 +21,7 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
             if (activeCount < 1)
                 throw new ArgumentException($"The '{nameof(activeCount)}' parameter should be greater then equal 1");
             if (maxCount < activeCount)
-                throw new ArgumentException($"The '{nameof(maxCount)}' parameter should be greater then equal '{activeCount}' parameter");
+                throw new ArgumentException($"The '{nameof(maxCount)}' parameter should be greater then equal '{nameof(activeCount)}' parameter");
 
             _activeCount = activeCount;
             _maxCount = maxCount;

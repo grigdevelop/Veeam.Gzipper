@@ -1,89 +1,89 @@
 ﻿using System;
 using System.IO;
-using Veeam.Gzipper.Core.Constants;
+using System.Linq;
+using System.Threading;
+using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Streams.Types;
-using Veeam.Gzipper.Core.Utilities;
 
 namespace Veeam.Gzipper.Core.Streams
 {
-    
+
     public class ChunkedStreamReader : IDisposable
     {
         private readonly Stream _stream;
+        private readonly ICompressorSettings _settings;
 
-        private long? _originalSourceSize;
-        public long OriginalSourceSize
+        public long OriginalSourceSize { get; }
+
+        public long CompressTimeAvailableMemoryLimit { get; }
+
+        private int? _maxThreadsCount;
+        public int MaxThreadsCount
         {
             get
             {
-                if (_originalSourceSize == null)
+                if (_maxThreadsCount == null)
                 {
-                    // get the original size of the source file
-                    const int lengthSize = sizeof(long);
-                    var sizeBuffer = new byte[lengthSize];
-                    _stream.Read(sizeBuffer, 0, lengthSize);
-                    _originalSourceSize = BitConverter.ToInt64(sizeBuffer, 0);
+                    _maxThreadsCount = (int)(OriginalSourceSize / _settings.ChunkSize);
+                    var leftSize = (int)(OriginalSourceSize % _settings.ChunkSize);
+                    if (leftSize > 0) _maxThreadsCount++;
                 }
-
-                return _originalSourceSize.Value;
+                return _maxThreadsCount.Value;
             }
         }
 
-        public ChunkedStreamReader(Stream stream)
+        public ChunkedStreamReader(Stream stream, ICompressorSettings settings)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+
+            // read metadata
+            var buffer = new byte[Chunk.INDEX_SIZE];
+            _stream.Read(buffer, 0, buffer.Length);
+            OriginalSourceSize = BitConverter.ToInt64(buffer, 0);
+
+            _stream.Read(buffer, 0, buffer.Length);
+            CompressTimeAvailableMemoryLimit = BitConverter.ToInt64(buffer, 0);
+
+            _settings.AutoSetChunkSize(OriginalSourceSize, CompressTimeAvailableMemoryLimit);
         }
-
-
 
         public void ReadAll(Action<ChunkedData> callback)
         {
             if (callback == null) throw new ArgumentNullException(nameof(callback));
 
-            // our chunk size is constant, so it's possible that we will have some empty bytes in our source stream
-            var emptySlotsSize = ProcessorConstants.CHUNK_SIZE - (int)(OriginalSourceSize % ProcessorConstants.CHUNK_SIZE);
-            
-            /*
-             NOTE: Reading itself is sync, because of gzip compression algorithm,
-             but we can proceed received data independently
-             */
+            var maxThreadsCount = (int)(OriginalSourceSize / _settings.ChunkSize);
+            var leftSize = (int)(OriginalSourceSize % _settings.ChunkSize);
+            if (leftSize > 0) maxThreadsCount++;
 
-            var indexBuffer = new byte[Chunk.INDEX_SIZE];
-            var read = _stream.Read(indexBuffer, 0, indexBuffer.Length);
+            // count how many threads will work at time
+            var actualThreadsLimit = (int)(_settings.AvailableMemorySize / _settings.ChunkSize);
+            if (actualThreadsLimit == 0) actualThreadsLimit++;
 
-            var buffer = new byte[ProcessorConstants.CHUNK_SIZE];
+            var buffer = new byte[Chunk.INDEX_SIZE + _settings.ChunkSize];
 
-            while (read > 0)
+            // limit active threads and chunks count by semaphore
+            var semaphore = new Semaphore(actualThreadsLimit, actualThreadsLimit);
+
+            for (var i = 0; i < maxThreadsCount; i++)
             {
-                var index = BitConverter.ToInt32(indexBuffer, 0);
-
-                var currentBuffer = buffer;
+                _stream.Read(buffer, 0, buffer.Length);
+                var index = BitConverter.ToInt64(buffer!, 0);
+                var query = buffer.Skip(Chunk.INDEX_SIZE);
 
                 if (index < 0)
                 {
-                    index = -index; // make it positive
-                    currentBuffer = new byte[ProcessorConstants.CHUNK_SIZE - emptySlotsSize];
-
-                    // read partial chunk
-                    _stream.Read(currentBuffer, 0, currentBuffer.Length);
-
-                    // read empty chunk
-                    var emptyChunk = new byte[emptySlotsSize];
-                    _stream.Read(emptyChunk, 0, emptyChunk.Length);
+                    index = -index;
+                    query = query.Take(leftSize);
                 }
-                else
+                var chunk = new ChunkedData(index * _settings.ChunkSize, query.ToArray());
+                new Thread(() =>
                 {
-                    // read full chunk
-                    _stream.Read(currentBuffer, 0, currentBuffer.Length);
-                }
-
-                // this call can be async. We don't need to wait 
-                callback.Invoke(new ChunkedData((long)index * ProcessorConstants.CHUNK_SIZE, currentBuffer));
-
-                // read next index
-                read = _stream.Read(indexBuffer, 0, indexBuffer.Length);
+                    semaphore.WaitOne();
+                    callback.Invoke(chunk); // sync method
+                    semaphore.Release();
+                }).Start();
             }
-
 
         }
 

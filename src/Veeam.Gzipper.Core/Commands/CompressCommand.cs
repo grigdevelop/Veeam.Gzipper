@@ -2,8 +2,8 @@
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
+using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Configuration.Types;
-using Veeam.Gzipper.Core.Constants;
 using Veeam.Gzipper.Core.Logging.Abstraction;
 using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
 using Veeam.Gzipper.Core.Utilities;
@@ -14,17 +14,22 @@ namespace Veeam.Gzipper.Core.Commands
     {
         private readonly IStreamFactory _streamFactory;
         private readonly ILogger _logger;
+        private readonly ICompressorSettings _settings;
 
-        public CompressCommand(IStreamFactory streamFactory, ILogger logger)
+        public CompressCommand(IStreamFactory streamFactory, ILogger logger, ICompressorSettings settings)
         {
             _streamFactory = streamFactory ?? throw new ArgumentNullException(nameof(streamFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         }
 
         public void StartSync(UserInputData input)
         {
             // stream for reading from source
             using var sourceFileStream = _streamFactory.CreateSourceFileStream(input.SourceFilePath);
+
+            // set chunk size
+            _settings.AutoSetChunkSize(sourceFileStream.Length);
 
             // streams for compressing and saving in file
             using var targetFileStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
@@ -37,8 +42,12 @@ namespace Veeam.Gzipper.Core.Commands
             var sizeBuffer = BitConverter.GetBytes(sourceFileStream.Length);
             safeStream.Write(sizeBuffer, 0, sizeBuffer.Length);
 
+            // write current available memory ( which can be changed from configs ) after file size
+            sizeBuffer = BitConverter.GetBytes(_settings.AvailableMemorySize);
+            safeStream.Write(sizeBuffer, 0, sizeBuffer.Length);
+
             // start async reading from the source by chunks. Chunks contains original position of partial data
-            using var chunkReader = new StreamChunkReader(sourceFileStream, ProcessorConstants.CHUNK_SIZE, ProcessorConstants.AVAILABLE_MEMEORY);
+            using var chunkReader = new StreamChunkReader(sourceFileStream, _settings.ChunkSize, _settings.AvailableMemorySize);
 
             // count how many threads executed
             var executedCount = 0;
@@ -48,7 +57,6 @@ namespace Veeam.Gzipper.Core.Commands
             {
                 // TODO: try async write with sync context
                 safeStream.Write(chunk.Data, 0, chunk.Data.Length);
-                //GC.SuppressFinalize(chunk);
                 executedCount++;
             });
 
@@ -65,7 +73,7 @@ namespace Veeam.Gzipper.Core.Commands
         {
             while (executedCount < reader.MaxThreadsLimit)
             {
-                _logger.InfoStatic(((executedCount / (double)reader.MaxThreadsLimit) * 100.0) + " %");
+                _logger.InfoStatic(Math.Round((executedCount / (double)reader.MaxThreadsLimit) * 100.0, 2) + " %");
                 Thread.Sleep(100);
             }
         }
