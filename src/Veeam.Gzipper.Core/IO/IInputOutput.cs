@@ -1,4 +1,4 @@
-﻿namespace Veeam.Gzipper.Core.Abstractions
+﻿namespace Veeam.Gzipper.Core.IO
 {
     /// <summary>
     /// Abstraction for reading and writing data from/into different sources

@@ -1,22 +1,22 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
-using Veeam.Gzipper.Core.Factories;
-using Veeam.Gzipper.Core.Types;
-using Veeam.Gzipper.Core.Utilities;
+using Veeam.Gzipper.Core.Configuration.Types;
+using Veeam.Gzipper.Core.Streams;
+using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
 
-namespace Veeam.Gzipper.Core.Processors
+namespace Veeam.Gzipper.Core.Commands
 {
-    public class DecompressProcessor : IProcessor
+    public class DecompressCommand : ICommand
     {
         private readonly IStreamFactory _streamFactory;
 
-        public DecompressProcessor(IStreamFactory streamFactory)
+        public DecompressCommand(IStreamFactory streamFactory)
         {
             _streamFactory = streamFactory ?? throw new ArgumentNullException(nameof(streamFactory));
         }
 
-        public void StartSync(GzipperInputData input)
+        public void StartSync(UserInputData input)
         {
             // create source streams
             using var sourceStream = _streamFactory.CreateSourceFileStream(input.SourceFilePath);

@@ -1,23 +1,12 @@
 ﻿using System;
 using System.IO;
-using System.Text;
 using Veeam.Gzipper.Core.Constants;
+using Veeam.Gzipper.Core.Streams.Types;
+using Veeam.Gzipper.Core.Utilities;
 
-namespace Veeam.Gzipper.Core.Utilities
+namespace Veeam.Gzipper.Core.Streams
 {
-    public class ChunkedData
-    {
-        public long Position { get; }
-
-        public byte[] Data { get; }
-
-        public ChunkedData(long position, byte[] data)
-        {
-            Position = position;
-            Data = data;
-        }
-    }
-
+    
     public class ChunkedStreamReader : IDisposable
     {
         private readonly Stream _stream;
@@ -53,8 +42,7 @@ namespace Veeam.Gzipper.Core.Utilities
 
             // our chunk size is constant, so it's possible that we will have some empty bytes in our source stream
             var emptySlotsSize = ProcessorConstants.CHUNK_SIZE - (int)(OriginalSourceSize % ProcessorConstants.CHUNK_SIZE);
-
-
+            
             /*
              NOTE: Reading itself is sync, because of gzip compression algorithm,
              but we can proceed received data independently

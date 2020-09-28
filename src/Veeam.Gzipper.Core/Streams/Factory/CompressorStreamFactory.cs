@@ -1,6 +1,7 @@
 ﻿using System.IO;
+using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
 
-namespace Veeam.Gzipper.Core.Factories
+namespace Veeam.Gzipper.Core.Streams.Factory
 {
     public class CompressorStreamFactory : IStreamFactory
     {

@@ -1,9 +1,9 @@
 ﻿using System;
-using Veeam.Gzipper.Core.Abstractions;
+using Veeam.Gzipper.Core.Configuration.Types;
 using Veeam.Gzipper.Core.Constants;
-using Veeam.Gzipper.Core.Types;
+using Veeam.Gzipper.Core.IO;
 
-namespace Veeam.Gzipper.Core.Utilities
+namespace Veeam.Gzipper.Core.Streams
 {
     public class GzipperUserInputReader
     {
@@ -14,20 +14,20 @@ namespace Veeam.Gzipper.Core.Utilities
             _inOut = inOut ?? throw new ArgumentNullException(nameof(inOut));
         }
 
-        public GzipperInputData ParseUserInputData(string[] args)
+        public UserInputData ParseUserInputData(string[] args)
         {
             var compressDecompress = args.Length == 0 ? _inOut.ReadLine(MessageConstants.EnterCompressionMethodMessage) : args[0];
+            UserAction action = compressDecompress switch
+            {
+                "compress" => UserAction.Compress,
+                "decompress" => UserAction.Decompress,
+                _ => throw new InvalidOperationException($"Unknown command '{compressDecompress}' entered.")
+            };
+
             var sourcePath = args.Length < 2 ? _inOut.ReadLine(MessageConstants.EnterSourceMessage) : args[1];
             var targetPath = args.Length < 3 ? _inOut.ReadLine(MessageConstants.EnterTargetMessage) : args[2];
-            switch (compressDecompress)
-            {
-                case "compress":
-                    return new GzipperInputData(GzipperAction.Compress, sourcePath, targetPath);
-                case "decompress":
-                    return new GzipperInputData(GzipperAction.Decompress, sourcePath, targetPath);
-                default:
-                    throw new InvalidOperationException($"Unknown '{compressDecompress}' entered.");
-            }
+
+            return new UserInputData(action, sourcePath, targetPath);
         }
     }
 }

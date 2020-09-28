@@ -1,7 +1,7 @@
 ﻿using System;
-using Veeam.Gzipper.Core.Abstractions;
+using Veeam.Gzipper.Core.IO;
 
-namespace Veeam.Gzipper.Cmd.Concrete
+namespace Veeam.Gzipper.Cmd.IO
 {
     /// <summary>
     /// <see cref="Console"/> implementation of <see cref="IInputOutput"/> interface

@@ -2,23 +2,26 @@
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
+using Veeam.Gzipper.Core.Configuration.Types;
 using Veeam.Gzipper.Core.Constants;
-using Veeam.Gzipper.Core.Factories;
-using Veeam.Gzipper.Core.Types;
+using Veeam.Gzipper.Core.Logging.Abstraction;
+using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
 using Veeam.Gzipper.Core.Utilities;
 
-namespace Veeam.Gzipper.Core.Processors
+namespace Veeam.Gzipper.Core.Commands
 {
-    public class CompressProcessor : IProcessor
+    public class CompressCommand : ICommand
     {
         private readonly IStreamFactory _streamFactory;
+        private readonly ILogger _logger;
 
-        public CompressProcessor(IStreamFactory streamFactory)
+        public CompressCommand(IStreamFactory streamFactory, ILogger logger)
         {
             _streamFactory = streamFactory ?? throw new ArgumentNullException(nameof(streamFactory));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public void StartSync(GzipperInputData input)
+        public void StartSync(UserInputData input)
         {
             // stream for reading from source
             using var sourceFileStream = _streamFactory.CreateSourceFileStream(input.SourceFilePath);
@@ -39,7 +42,7 @@ namespace Veeam.Gzipper.Core.Processors
 
             // count how many threads executed
             var executedCount = 0;
-            new Thread(() => Per(ref executedCount, chunkReader)).Start();
+            new Thread(() => ShowPercentage(ref executedCount, chunkReader)).Start();
 
             chunkReader.Read(chunk =>
             {
@@ -49,25 +52,22 @@ namespace Veeam.Gzipper.Core.Processors
                 executedCount++;
             });
 
-            
-
             // wait until all threads executed
             while (executedCount < chunkReader.MaxThreadsLimit)
             {
 
             }
+
+            _logger.InfoStatic("100 %\n\n");
         }
 
-        void Per(ref int executedCount, StreamChunkReader reader)
+        private void ShowPercentage(ref int executedCount, StreamChunkReader reader)
         {
-            Console.SetCursorPosition(0, Console.CursorTop);
-            Console.Write("                                                                            ");
-            Console.SetCursorPosition(0, Console.CursorTop);
-            Console.Write(((executedCount / (double)reader.MaxThreadsLimit) * 100.0) + "%");
-
-            Thread.Sleep(100);
-            if (executedCount < reader.MaxThreadsLimit)
-                Per(ref executedCount, reader);
+            while (executedCount < reader.MaxThreadsLimit)
+            {
+                _logger.InfoStatic(((executedCount / (double)reader.MaxThreadsLimit) * 100.0) + " %");
+                Thread.Sleep(100);
+            }
         }
     }
 }

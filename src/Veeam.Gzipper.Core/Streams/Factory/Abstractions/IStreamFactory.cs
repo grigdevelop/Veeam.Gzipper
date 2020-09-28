@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace Veeam.Gzipper.Core.Factories
+namespace Veeam.Gzipper.Core.Streams.Factory.Abstractions
 {
     /// <summary>
     /// Abstraction for getting compression streams

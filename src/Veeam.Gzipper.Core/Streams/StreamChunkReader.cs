@@ -1,42 +1,12 @@
 ﻿using System;
 using System.IO;
+using Veeam.Gzipper.Core.Streams;
+using Veeam.Gzipper.Core.Streams.Types;
+using Veeam.Gzipper.Core.Threads.Limitations;
 
 namespace Veeam.Gzipper.Core.Utilities
 {
-    public class Chunk
-    {
-        public byte[] Data { get; private set; }
-
-        public long Index { get; }
-
-        public const int INDEX_SIZE = 8; // 8 bytes for long
-
-        private Chunk(byte[] data, long index)
-        {
-            Index = index;
-            var bytes = BitConverter.GetBytes(index);
-            bytes.CopyTo(data, 0);
-
-            Data = data;
-
-        }
-
-        public void MarkAsWithEmptySlots()
-        {
-            var bytes = BitConverter.GetBytes(-Index);
-            bytes.CopyTo(Data, 0);
-        }
-
-        public Chunk(int bufferSize, long index) :
-            this(new byte[bufferSize + INDEX_SIZE], index)
-        {
-        }
-
-        //~Chunk()
-        //{
-        //    this.Data = null;
-        //}
-    }
+    
 
     public class StreamChunkReader : IDisposable
     {
