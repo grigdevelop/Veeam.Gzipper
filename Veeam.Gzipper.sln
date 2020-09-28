@@ -3,13 +3,20 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30320.27
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Veeam.Gzipper.Core", "src\Veeam.Gzipper.Core\Veeam.Gzipper.Core.csproj", "{81D57AB6-581D-4340-B70B-C22E32130BD5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veeam.Gzipper.Core", "src\Veeam.Gzipper.Core\Veeam.Gzipper.Core.csproj", "{81D57AB6-581D-4340-B70B-C22E32130BD5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GZipTest", "src\GZipTest\GZipTest.csproj", "{8F741E9D-956B-4C38-830C-8703F288116D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GZipTest", "src\GZipTest\GZipTest.csproj", "{8F741E9D-956B-4C38-830C-8703F288116D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Veeam.Gzipper.Cmd", "src\Veeam.Gzipper.Cmd\Veeam.Gzipper.Cmd.csproj", "{C586E820-95F4-46D0-9FB6-50C1E165C15B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veeam.Gzipper.Cmd", "src\Veeam.Gzipper.Cmd\Veeam.Gzipper.Cmd.csproj", "{C586E820-95F4-46D0-9FB6-50C1E165C15B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Veeam.Gzipper.Tests", "src\Veeam.Gzipper.Tests\Veeam.Gzipper.Tests.csproj", "{A38E65BC-A4D0-4AFF-B3DA-F745EE5A5605}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veeam.Gzipper.Tests", "src\Veeam.Gzipper.Tests\Veeam.Gzipper.Tests.csproj", "{A38E65BC-A4D0-4AFF-B3DA-F745EE5A5605}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C39EDCDA-A0B9-4133-AF7F-FCACF0CC33D9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3EDF6562-EFF6-4B26-A888-57B253063483}"
+	ProjectSection(SolutionItems) = preProject
+		ReadMe.md = ReadMe.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -36,6 +43,12 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{81D57AB6-581D-4340-B70B-C22E32130BD5} = {C39EDCDA-A0B9-4133-AF7F-FCACF0CC33D9}
+		{8F741E9D-956B-4C38-830C-8703F288116D} = {C39EDCDA-A0B9-4133-AF7F-FCACF0CC33D9}
+		{C586E820-95F4-46D0-9FB6-50C1E165C15B} = {C39EDCDA-A0B9-4133-AF7F-FCACF0CC33D9}
+		{A38E65BC-A4D0-4AFF-B3DA-F745EE5A5605} = {C39EDCDA-A0B9-4133-AF7F-FCACF0CC33D9}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {03A00C62-EA03-4E9D-8623-4151228092F2}

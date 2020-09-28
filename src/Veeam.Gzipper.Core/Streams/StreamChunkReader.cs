@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using Veeam.Gzipper.Core.Streams;
 using Veeam.Gzipper.Core.Streams.Types;
 using Veeam.Gzipper.Core.Threads.Limitations;
 
