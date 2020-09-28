@@ -2,6 +2,7 @@
 
 namespace Veeam.Gzipper.Core.Configuration
 {
+    /// <inheritdoc cref="ICompressorSettings"/>
     public class CompressorSettings : ICompressorSettings
     {
         public long AvailableMemorySize => 1024 * 1024 * 8;
@@ -23,7 +24,20 @@ namespace Veeam.Gzipper.Core.Configuration
                 ChunkSize = (int)(originalFileSize / 5);
             else
             {
-                ChunkSize = (int)(availableMemorySize / 10);
+                if (availableMemorySize <= 1024)
+                {
+                    ChunkSize = (int)availableMemorySize;
+                    return;
+                }
+
+
+                if (availableMemorySize <= 1024 * 128)
+                {
+                    ChunkSize = (int)(availableMemorySize / 2);
+                    return;
+                }
+
+                ChunkSize = (int)(availableMemorySize / 8);
             }
         }
     }
