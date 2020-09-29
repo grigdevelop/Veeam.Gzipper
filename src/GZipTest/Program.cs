@@ -21,8 +21,7 @@ namespace GZipTest
             ILogger logger = new ConsoleLogger();
             IStreamFactory streamFactory = new CompressorStreamFactory();
             ICompressorSettings settings = new CompressorSettings();
-
-
+            
             var app = new CompressorApplication(io, logger, streamFactory, settings);
             app.Execute(args);
 

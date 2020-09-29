@@ -6,8 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
+using Veeam.Gzipper.Core.Streams;
 using Veeam.Gzipper.Core.Streams.Types;
-using Veeam.Gzipper.Core.Utilities;
 
 namespace Veeam.Gzipper.Tests
 {

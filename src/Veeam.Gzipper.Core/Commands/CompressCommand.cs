@@ -5,8 +5,8 @@ using System.Threading;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Configuration.Types;
 using Veeam.Gzipper.Core.Logging.Abstraction;
+using Veeam.Gzipper.Core.Streams;
 using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
-using Veeam.Gzipper.Core.Utilities;
 
 namespace Veeam.Gzipper.Core.Commands
 {

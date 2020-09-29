@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Streams.Types;
 using Veeam.Gzipper.Core.Threads.Limitations;
@@ -83,29 +82,6 @@ namespace Veeam.Gzipper.Core.Streams
                 return chunk;
             });
             slt.StartSync();
-
-            //var semaphore = new Semaphore(actualThreadsLimit, actualThreadsLimit);
-
-            //for (var i = 0; i < maxThreadsCount; i++)
-            //{
-            //    _stream.Read(buffer, 0, buffer.Length);
-            //    var index = BitConverter.ToInt64(buffer!, 0);
-            //    var query = buffer.Skip(Chunk.INDEX_SIZE);
-
-            //    if (index < 0)
-            //    {
-            //        index = -index;
-            //        query = query.Take(leftSize);
-            //    }
-            //    var chunk = new ChunkedData(index * _settings.ChunkSize, query.ToArray());
-            //    new Thread(() =>
-            //    {
-            //        semaphore.WaitOne();
-            //        callback.Invoke(chunk); // sync method
-            //        semaphore.Release();
-            //    }).Start();
-            //}
-
         }
 
         public void Dispose()

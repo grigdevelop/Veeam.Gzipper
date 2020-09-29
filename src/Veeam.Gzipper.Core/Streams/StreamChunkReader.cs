@@ -3,20 +3,27 @@ using System.IO;
 using Veeam.Gzipper.Core.Streams.Types;
 using Veeam.Gzipper.Core.Threads.Limitations;
 
-namespace Veeam.Gzipper.Core.Utilities
+namespace Veeam.Gzipper.Core.Streams
 {
-
-
     public class StreamChunkReader : IDisposable
     {
         private readonly int _maxThreadsLimit;
         private readonly int _actualThreadsLimit;
         private readonly int _bufferSize;
 
+        /// <summary>
+        /// Gets base stream 
+        /// </summary>
         public Stream BaseStream { get; }
 
+        /// <summary>
+        /// Gets max threads limit 
+        /// </summary>
         public int MaxThreadsLimit => _maxThreadsLimit;
 
+        /// <summary>
+        /// Gets source size
+        /// </summary>
         public long SourceSize { get; }
 
 
@@ -61,8 +68,7 @@ namespace Veeam.Gzipper.Core.Utilities
             }, _actualThreadsLimit, _maxThreadsLimit);
 
             slt.StartSync();
-
-
+            
             // StartSync part itself will work synchronously
             // But for handling callbacks need additional functionality
             while (threadsDone < _maxThreadsLimit)
