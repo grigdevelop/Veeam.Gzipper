@@ -21,7 +21,7 @@ namespace Veeam.Gzipper.Core.Configuration
             }
 
             if (availableMemorySize > originalFileSize)
-                ChunkSize = (int)(originalFileSize / 5);
+                ChunkSize = (int)(originalFileSize / 4);
             else
             {
                 if (availableMemorySize <= 1024)
@@ -34,6 +34,13 @@ namespace Veeam.Gzipper.Core.Configuration
                 if (availableMemorySize <= 1024 * 128)
                 {
                     ChunkSize = (int)(availableMemorySize / 2);
+                    return;
+                }
+
+
+                if (availableMemorySize <= 1024 * 512)
+                {
+                    ChunkSize = (int)(availableMemorySize / 4);
                     return;
                 }
 
