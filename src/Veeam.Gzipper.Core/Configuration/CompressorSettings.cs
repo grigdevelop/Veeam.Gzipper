@@ -7,5 +7,7 @@ namespace Veeam.Gzipper.Core.Configuration
     {
         //public int ChunkSize => 1024 * 1024;
         public int ChunkSize => 20;
+        
+        public int Cores => 4;
     }
 }

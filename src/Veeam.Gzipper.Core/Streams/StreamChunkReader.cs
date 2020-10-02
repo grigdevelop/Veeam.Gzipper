@@ -1,23 +1,30 @@
 ﻿using System;
 using System.IO;
-using System.Threading;
+using System.IO.MemoryMappedFiles;
 using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
 using Veeam.Gzipper.Core.Streams.Types;
 using Veeam.Gzipper.Core.Threads;
 
 namespace Veeam.Gzipper.Core.Streams
 {
-    public class StreamChunkReader
+    public class StreamChunkReader : IDisposable
     {
         private readonly string _path;
         private readonly IStreamFactory _streamFactory;
         private readonly int _bufferSize;
-
-        public StreamChunkReader(string path, IStreamFactory streamFactory, int bufferSize)
+        private readonly int _cores;
+        private readonly MemoryMappedFile _mmf;
+        private readonly Stream _stream;
+        
+        public StreamChunkReader(string path, IStreamFactory streamFactory, int bufferSize, int cores)
         {
             _path = path;
             _streamFactory = streamFactory;
             _bufferSize = bufferSize;
+            _cores = cores;
+
+            _mmf = MemoryMappedFile.CreateFromFile(_path);
+            _stream = _mmf.CreateViewStream();
         }
 
         public void ReadParallel(Action<PortionChunkReader[]> callback)
@@ -53,47 +60,34 @@ namespace Veeam.Gzipper.Core.Streams
             var reader = (PortionChunkReader)obj;
 
             // create a separate stream 
-            using var sourceStream = _streamFactory.CreateSourceFileStream(_path);
 
-            var sourceSize = sourceStream.Length;
+            var sourceSize = _stream.Length;
 
             // the size which should process one thread
-            var currentThreadSize = (sourceSize / 4);
-
-            // for last portion read until the end
-            if (reader.Index == 3)
-            {
-                var diff = (sourceSize % 4);
-                if (diff > 0)
-                    currentThreadSize += diff;
-            }
+            var currentThreadSize = (sourceSize / _cores);
+            var endSize = (reader.Index == _cores - 1) ? 0 : currentThreadSize;
 
             // before end reading set position
-            var startPosition = reader.Index * currentThreadSize;
-            sourceStream.Seek(startPosition, SeekOrigin.Begin);
+            using var sourceStream = _mmf.CreateViewStream(reader.Index * currentThreadSize, endSize);
 
             // save size
-            reader.SetData(BitConverter.GetBytes(currentThreadSize), 8);
+            reader.SetData(BitConverter.GetBytes(sourceStream.Length), 8);
 
-            var done = 0L;
+            //var done = 0L;
             var buffer = new byte[_bufferSize];
             int read;
 
-            while (done < currentThreadSize - _bufferSize)
+            do
             {
-                read = sourceStream.Read(buffer, 0, buffer.Length);
+                read = sourceStream.Read(buffer);
                 reader.SetData(buffer, read);
-                done += read;
-            }
+            } while (read > 0);
+        }
 
-            var left = (int)(currentThreadSize - done);
-            buffer = new byte[left];
-            read = sourceStream.Read(buffer, 0, left);
-            reader.SetData(buffer, read);
-
-            Console.WriteLine($"THREAD {reader.Index}: Is Done");
-
-            reader.SetData(null, 0);
+        public void Dispose()
+        {
+            _stream.Dispose();
+            _mmf.Dispose();
         }
     }
 }

@@ -29,7 +29,7 @@ namespace Veeam.Gzipper.Core.Commands
             var targetFileStream = File.Open(input.TargetFilePath, FileMode.Create, FileAccess.Write);
 
             // start async reading from the source by chunks. Chunks contains original position of partial data
-            var chunkReader = new StreamChunkReader(input.SourceFilePath, _streamFactory, _settings.ChunkSize);
+            using var chunkReader = new StreamChunkReader(input.SourceFilePath, _streamFactory, _settings.ChunkSize, _settings.Cores);
 
             chunkReader.ReadParallel((readers) =>
             {

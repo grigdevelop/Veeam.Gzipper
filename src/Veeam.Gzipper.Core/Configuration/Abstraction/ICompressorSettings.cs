@@ -9,5 +9,10 @@
         /// Gets the chunk size
         /// </summary>
         int ChunkSize { get; }
+        
+        /// <summary>
+        /// Gets the available cores count
+        /// </summary>
+        int Cores { get;  }
     }
 }

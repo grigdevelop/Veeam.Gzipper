@@ -42,7 +42,7 @@ namespace Veeam.Gzipper.Core.Streams.Types
             {
                 _setterReset.WaitOne();
                 //Console.WriteLine("PUSHING: " + Encoding.Default.GetString(data ?? new byte[0]));
-                if (data != null)
+                if (read > 0 && data != null)
                 {
                     _data = new byte[read];
                     data.CopyTo(_data, 0);

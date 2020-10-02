@@ -1,4 +1,7 @@
 ﻿using System;
+using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Text;
 using System.Threading;
 using Veeam.Gzipper.Cmd.IO;
 using Veeam.Gzipper.Cmd.Logging;
@@ -18,43 +21,29 @@ namespace GZipTest
 
         static void _Main(string[] args)
         {
-            var reader = new ConcurReadWrite();
-            var rd = new Random();
-            var work = true;
-
-            var readBuffer = new byte[5];
-            var writeBuffer = new byte[5];
-
-            var readerThread = new Thread(() =>
+            using var mmf = MemoryMappedFile.CreateFromFile("source.txt");
+            using(var view = mmf.CreateViewStream(0, 20))
             {
-                while (work)
-                {
-                    Console.WriteLine("READER: Trying to read data");
-                    reader.Read(readBuffer);
-                    Thread.Sleep(rd.Next(1, 10));
-
-                    Console.WriteLine("READER: Read done");
-                }
-
-            });
-
-            var setterThread = new Thread(() =>
+                ShowStream(view);
+            }
+            
+            Console.WriteLine("-----------------------------");
+            
+            using(var view = mmf.CreateViewStream(20, 20))
             {
-                //Thread.Sleep(1000);
-                while (work)
-                {
-                    Thread.Sleep(rd.Next(1, 10));
-                    Console.WriteLine("SETTER: Trying to set data");
-                    reader.SetData(writeBuffer);
-                    Console.WriteLine("SETTER: Set done");
-                }
-            });
+                ShowStream(view);
+            }
+        }
 
-            readerThread.Start();
-            setterThread.Start();
-
-            Console.ReadLine();
-            work = false;
+        static void ShowStream(Stream stream)
+        {
+            var buffer = new byte[3];
+            var read = stream.Read(buffer);
+            while (read > 0)
+            {
+                Console.WriteLine(Encoding.Default.GetString(buffer));
+                read = stream.Read(buffer);
+            }            
         }
 
         static void Main(string[] args)
