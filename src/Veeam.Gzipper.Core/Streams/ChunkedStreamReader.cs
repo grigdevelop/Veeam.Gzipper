@@ -1,92 +1,54 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using Veeam.Gzipper.Core.Configuration.Abstraction;
+using System.Threading;
 using Veeam.Gzipper.Core.Streams.Types;
-using Veeam.Gzipper.Core.Threads.Limitations;
 
 namespace Veeam.Gzipper.Core.Streams
 {
 
-    public class ChunkedStreamReader : IDisposable
+    public class ChunkedStreamReader
     {
         private readonly Stream _stream;
-        private readonly ICompressorSettings _settings;
+        private readonly int _bufferSize;
 
-        public long OriginalSourceSize { get; }
-
-        public long CompressTimeAvailableMemoryLimit { get; }
-
-        private int? _maxThreadsCount;
-        public int MaxThreadsCount
-        {
-            get
-            {
-                if (_maxThreadsCount == null)
-                {
-                    _maxThreadsCount = (int)(OriginalSourceSize / _settings.ChunkSize);
-                    var leftSize = (int)(OriginalSourceSize % _settings.ChunkSize);
-                    if (leftSize > 0) _maxThreadsCount++;
-                }
-                return _maxThreadsCount.Value;
-            }
-        }
-
-        public ChunkedStreamReader(Stream stream, ICompressorSettings settings)
+        public ChunkedStreamReader(Stream stream, int bufferSize)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-
-            // read metadata
-            var buffer = new byte[Chunk.INDEX_SIZE];
-            _stream.Read(buffer, 0, buffer.Length);
-            OriginalSourceSize = BitConverter.ToInt64(buffer, 0);
-
-            _stream.Read(buffer, 0, buffer.Length);
-            CompressTimeAvailableMemoryLimit = BitConverter.ToInt64(buffer, 0);
-
-            _settings.AutoSetChunkSize(OriginalSourceSize, CompressTimeAvailableMemoryLimit);
+            _bufferSize = bufferSize;
         }
 
-        public void ReadAll(Action<ChunkedData> callback)
+        public void ReadParallel(Action<PortionChunkReader> callback)
         {
             if (callback == null) throw new ArgumentNullException(nameof(callback));
 
-            var maxThreadsCount = (int)(OriginalSourceSize / _settings.ChunkSize);
-            var leftSize = (int)(OriginalSourceSize % _settings.ChunkSize);
-            if (leftSize > 0) maxThreadsCount++;
-
-            // count how many threads will work at time
-            var actualThreadsLimit = (int)(_settings.AvailableMemorySize / _settings.ChunkSize);
-            if (actualThreadsLimit == 0) actualThreadsLimit++;
-            if (actualThreadsLimit > maxThreadsCount) actualThreadsLimit = maxThreadsCount;
-
-            var buffer = new byte[Chunk.INDEX_SIZE + _settings.ChunkSize];
-
-            // limit active threads and chunks count by semaphore
-            var slt = new SyncLimitedThreads(state =>
+            var chunkReaders = new Dictionary<int, PortionChunkReader>();
+            for (var i = 0; i < 4; i++)
             {
-                callback.Invoke((ChunkedData)state.SyncResult); // sync method
-            }, actualThreadsLimit, maxThreadsCount, () =>
+                var chunkReader = new PortionChunkReader(i);
+                chunkReaders.Add(i, chunkReader);
+                new Thread((obj) => callback((PortionChunkReader)obj)).Start(chunkReader);
+
+            }
+
+            const int indexSize = sizeof(int);
+            var buffer = new byte[_bufferSize + indexSize];
+
+            var read = _stream.Read(buffer, 0, buffer.Length);
+            while (read > 0)
             {
-                _stream.Read(buffer, 0, buffer.Length);
-                var index = BitConverter.ToInt64(buffer!, 0);
-                var query = buffer.Skip(Chunk.INDEX_SIZE);
+                var index = BitConverter.ToInt32(buffer, 0);
+                chunkReaders[index].SetData(buffer, read);
 
-                if (index < 0)
-                {
-                    index = -index;
-                    query = query.Take(leftSize);
-                }
-                var chunk = new ChunkedData(index * _settings.ChunkSize, query.ToArray());
-                return chunk;
-            });
-            slt.StartSync();
-        }
+                read = _stream.Read(buffer, 0, buffer.Length);
+            }
 
-        public void Dispose()
-        {
-            //_stream?.Dispose();
+            foreach (var portionChunkReader in chunkReaders)
+            {
+                //portionChunkReader.Value.SetData(null);
+            }
         }
     }
+
+
 }

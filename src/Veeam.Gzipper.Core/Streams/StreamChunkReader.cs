@@ -1,85 +1,99 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
+using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
 using Veeam.Gzipper.Core.Streams.Types;
-using Veeam.Gzipper.Core.Threads.Limitations;
+using Veeam.Gzipper.Core.Threads;
 
 namespace Veeam.Gzipper.Core.Streams
 {
-    public class StreamChunkReader : IDisposable
+    public class StreamChunkReader
     {
-        private readonly int _maxThreadsLimit;
-        private readonly int _actualThreadsLimit;
+        private readonly string _path;
+        private readonly IStreamFactory _streamFactory;
         private readonly int _bufferSize;
 
-        /// <summary>
-        /// Gets base stream 
-        /// </summary>
-        public Stream BaseStream { get; }
-
-        /// <summary>
-        /// Gets max threads limit 
-        /// </summary>
-        public int MaxThreadsLimit => _maxThreadsLimit;
-
-        /// <summary>
-        /// Gets source size
-        /// </summary>
-        public long SourceSize { get; }
-
-
-        public StreamChunkReader(Stream stream, int bufferSize, long allocatedMemoryLimitSize)
+        public StreamChunkReader(string path, IStreamFactory streamFactory, int bufferSize)
         {
-            BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
+            _path = path;
+            _streamFactory = streamFactory;
             _bufferSize = bufferSize;
-
-            SourceSize = BaseStream.Length;
-            if (SourceSize == 0)
-                throw new NotSupportedException("Unable to compress empty source");
-
-            // count how many threads will work totally
-            var maxThreadsLimit = (int)(SourceSize / bufferSize);
-            if (BaseStream.Length % bufferSize > 0) maxThreadsLimit++;
-            _maxThreadsLimit = maxThreadsLimit;
-
-            // count how many threads will work at time
-            var actualThreadsLimit = (int)(allocatedMemoryLimitSize / bufferSize);
-            if (actualThreadsLimit == 0) actualThreadsLimit++;
-            _actualThreadsLimit = actualThreadsLimit > _maxThreadsLimit ? _maxThreadsLimit : actualThreadsLimit;
         }
 
-        public void Read(Action<Chunk> callback)
+        public void ReadParallel(Action<PortionChunkReader[]> callback)
         {
-            var threadsDone = 0;
-            var slt = new SyncLimitedThreads(state=>
-            {
-                // create buffer and start reading
-                var chunk = new Chunk(_bufferSize, state.Index);
-                var asyncResult = BaseStream.BeginRead(chunk.Data, Chunk.INDEX_SIZE, _bufferSize, null!, null);
+            const int cores = 4;
+            var threads = new ExThread[cores];
+            var chunkReaders = new PortionChunkReader[cores];
 
-                // before end reading set position
-                BaseStream.Seek((long)state.Index * _bufferSize, SeekOrigin.Begin);
-                var read = BaseStream.EndRead(asyncResult);
-                if (read < _bufferSize)
+            for (var i = 0; i < cores; i++)
+            {
+                chunkReaders[i] = new PortionChunkReader(i);
+                threads[i] = new ExThread(ReadDataFromSource);
+                threads[i].OnError += (source, e) =>
                 {
-                    chunk.MarkAsWithEmptySlots();
-                }
-                callback.Invoke(chunk);
-                threadsDone++;
-            }, _actualThreadsLimit, _maxThreadsLimit);
-
-            slt.StartSync();
-            
-            // StartSync part itself will work synchronously
-            // But for handling callbacks need additional functionality
-            while (threadsDone < _maxThreadsLimit)
-            {
-
+                    foreach (var t in threads)
+                    {
+                        if (Equals(t, source)) continue;
+                        t.BaseThread.Interrupt();
+                    }
+                };
             }
+
+            for (var i = 0; i < cores; i++)
+            {
+                threads[i].Start(chunkReaders[i]);
+            }
+
+            callback(chunkReaders);
         }
 
-        public void Dispose()
+        private void ReadDataFromSource(object obj)
         {
-            //BaseStream?.Dispose();
+            var reader = (PortionChunkReader)obj;
+
+            // create a separate stream 
+            using var sourceStream = _streamFactory.CreateSourceFileStream(_path);
+
+            var sourceSize = sourceStream.Length;
+
+            // the size which should process one thread
+            var currentThreadSize = (sourceSize / 4);
+
+            // for last portion read until the end
+            if (reader.Index == 3)
+            {
+                var diff = (sourceSize % 4);
+                if (diff > 0)
+                    currentThreadSize += diff;
+            }
+
+            // before end reading set position
+            var startPosition = reader.Index * currentThreadSize;
+            sourceStream.Seek(startPosition, SeekOrigin.Begin);
+
+            // save size
+            reader.SetData(BitConverter.GetBytes(currentThreadSize), 8);
+
+            var done = 0L;
+            var buffer = new byte[_bufferSize];
+            int read;
+
+            while (done < currentThreadSize - _bufferSize)
+            {
+                read = sourceStream.Read(buffer, 0, buffer.Length);
+                reader.SetData(buffer, read);
+                done += read;
+            }
+
+            var left = (int)(currentThreadSize - done);
+            buffer = new byte[left];
+            read = sourceStream.Read(buffer, 0, left);
+            reader.SetData(buffer, read);
+
+            Console.WriteLine($"THREAD {reader.Index}: Is Done");
+
+            reader.SetData(null, 0);
         }
     }
 }

@@ -10,12 +10,12 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
 
         private readonly Action<SltState> _callback;
         private readonly int _maxCount;
-        private readonly Func<object> _syncBeforeCallback;
+        private readonly Func<int, object> _syncBeforeCallback;
         private readonly int _activeCount;
 
         private bool _started;
 
-        public SyncLimitedThreads(Action<SltState> callback, int activeCount, int maxCount, Func<object> syncBeforeCallback = null)
+        public SyncLimitedThreads(Action<SltState> callback, int activeCount, int maxCount, Func<int, object> syncBeforeCallback = null)
         {
             _callback = callback ?? throw new ArgumentNullException(nameof(callback));
 
@@ -56,7 +56,7 @@ namespace Veeam.Gzipper.Core.Threads.Limitations
 
                     // start a thread with a new state
                     object syncResult = null;
-                    if (_syncBeforeCallback != null) syncResult = _syncBeforeCallback();
+                    if (_syncBeforeCallback != null) syncResult = _syncBeforeCallback(i);
                     var state = new SltState(threads, interrupt, i, syncResult);
                     thread.Start(state);
 

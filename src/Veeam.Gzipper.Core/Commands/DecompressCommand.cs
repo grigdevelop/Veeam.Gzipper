@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
-using System.Threading;
+using System.Text;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Configuration.Types;
 using Veeam.Gzipper.Core.Logging.Abstraction;
@@ -27,65 +27,59 @@ namespace Veeam.Gzipper.Core.Commands
         {
             // create source streams
             using var sourceStream = _streamFactory.CreateSourceFileStream(input.SourceFilePath);
+            byte[] sizeBuffer = new byte[8];
+            sourceStream.Read(sizeBuffer);
+            var currentThreadSize = BitConverter.ToInt64(sizeBuffer);
+            Console.WriteLine("The size is: " + currentThreadSize);
+
             using var zipStream = new GZipStream(sourceStream, CompressionMode.Decompress);
 
+            var _bufferSize = _settings.ChunkSize;
+
+            var done = 0L;
+            var buffer = new byte[_bufferSize];
+            int read;
+            sourceStream.Seek(8, SeekOrigin.Begin);
+            while (done < currentThreadSize - _bufferSize)
+            {
+                read = zipStream.Read(buffer, 0, buffer.Length);
+                //reader.SetData(buffer, read);
+                Console.WriteLine(Encoding.Default.GetString(buffer));
+                done += read;
+            }
+
+            var left = (int)(currentThreadSize - done);
+            read = zipStream.Read(buffer, 0, left);
+            Console.WriteLine(Encoding.Default.GetString(buffer));
+
+            //using var zipStream = new GZipStream(sourceStream, CompressionMode.Decompress);
+
             // create target streams
-            using var targetStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
+            //using var targetStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
+
+
 
             // create chunk reader
-            using var chunkReader = new ChunkedStreamReader(zipStream, _settings);
-
-            // set original file size
-            targetStream.SetLength(chunkReader.OriginalSourceSize);
-
-            // count how many thread executed
-            var executed = 0;
-
-            // monitor progress
-            var progressThread = new Thread(() => ShowProgress(ref executed, chunkReader));
-            progressThread.Start();
-
-            var safeStream = Stream.Synchronized(targetStream);
-
-            try
-            {
-                chunkReader.ReadAll(chunk =>
-                {
-                    safeStream.Seek(chunk.Position, SeekOrigin.Begin);
-                    safeStream.Write(chunk.Data, 0, chunk.Data.Length);
-
-                    executed++;
-                });
-
-                // wait until all threads executed
-                while (executed < chunkReader.MaxThreadsCount)
-                {
-
-                }
-            }
-            finally
-            {
-                progressThread.Interrupt();
-            }
-
-            _logger.InfoStatic("100 %\n\n");
-        }
+            //var chunkReader = new ChunkedStreamReader(zipStream, _settings.ChunkSize);
 
 
-        private void ShowProgress(ref int executedCount, ChunkedStreamReader reader)
-        {
-            try
-            {
-                while (executedCount < reader.MaxThreadsCount)
-                {
-                    _logger.InfoStatic(Math.Round((executedCount / (double)reader.MaxThreadsCount) * 100.0, 2) + " %");
-                    Thread.Sleep(100);
-                }
-            }
-            catch (ThreadInterruptedException)
-            {
-                // ignore ThreadInterruptedException
-            }
+            //chunkReader.ReadParallel(reader =>
+            //{
+            //    //var data = reader.Read();
+            //    //var index = reader.Index;
+            //    //while(data != null)
+            //    //{
+
+            //    //}
+            //});
+
+            //chunkReader.ReadParallel(chunk =>
+            //{
+            //    safeStream.Seek(chunk.Position, SeekOrigin.Begin);
+            //    safeStream.Write(chunk.Data, 0, chunk.Data.Length);
+
+            //    executed++;
+            //});
         }
     }
 }
