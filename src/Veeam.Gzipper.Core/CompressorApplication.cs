@@ -1,5 +1,6 @@
 ﻿using System;
 using Veeam.Gzipper.Core.Commands;
+using Veeam.Gzipper.Core.Configuration;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Configuration.Types;
 using Veeam.Gzipper.Core.IO;
@@ -29,14 +30,7 @@ namespace Veeam.Gzipper.Core
 
         public void Execute(string[] args)
         {
-            try
-            {
-                UnsafeExecute(args);
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e.Message);
-            }
+            UnsafeExecute(args);
         }
 
         private void UnsafeExecute(string[] args)

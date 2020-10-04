@@ -1,85 +1,102 @@
 ﻿using System;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using Veeam.Gzipper.Core.Streams.Types;
-using Veeam.Gzipper.Core.Threads.Limitations;
+using Veeam.Gzipper.Core.Threads;
 
 namespace Veeam.Gzipper.Core.Streams
 {
     public class StreamChunkReader : IDisposable
     {
-        private readonly int _maxThreadsLimit;
-        private readonly int _actualThreadsLimit;
+        private readonly string _path;
         private readonly int _bufferSize;
+        private readonly int _cores;
+        private readonly MemoryMappedFile _mmf;
 
-        /// <summary>
-        /// Gets base stream 
-        /// </summary>
-        public Stream BaseStream { get; }
-
-        /// <summary>
-        /// Gets max threads limit 
-        /// </summary>
-        public int MaxThreadsLimit => _maxThreadsLimit;
-
-        /// <summary>
-        /// Gets source size
-        /// </summary>
-        public long SourceSize { get; }
-
-
-        public StreamChunkReader(Stream stream, int bufferSize, long allocatedMemoryLimitSize)
+        private long? _sourceSize;
+        public long SourceSize
         {
-            BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
-            _bufferSize = bufferSize;
-
-            SourceSize = BaseStream.Length;
-            if (SourceSize == 0)
-                throw new NotSupportedException("Unable to compress empty source");
-
-            // count how many threads will work totally
-            var maxThreadsLimit = (int)(SourceSize / bufferSize);
-            if (BaseStream.Length % bufferSize > 0) maxThreadsLimit++;
-            _maxThreadsLimit = maxThreadsLimit;
-
-            // count how many threads will work at time
-            var actualThreadsLimit = (int)(allocatedMemoryLimitSize / bufferSize);
-            if (actualThreadsLimit == 0) actualThreadsLimit++;
-            _actualThreadsLimit = actualThreadsLimit > _maxThreadsLimit ? _maxThreadsLimit : actualThreadsLimit;
+            get
+            {
+                if (_sourceSize.HasValue) return _sourceSize.Value;
+                using var tempStream = File.OpenRead(_path);
+                _sourceSize = tempStream.Length;
+                return _sourceSize.Value;
+            }
         }
 
-        public void Read(Action<Chunk> callback)
+        public event Action<int> OnRead;
+
+        public StreamChunkReader(string path, int bufferSize, int cores)
         {
-            var threadsDone = 0;
-            var slt = new SyncLimitedThreads(state=>
-            {
-                // create buffer and start reading
-                var chunk = new Chunk(_bufferSize, state.Index);
-                var asyncResult = BaseStream.BeginRead(chunk.Data, Chunk.INDEX_SIZE, _bufferSize, null!, null);
+            _path = path;
+            _bufferSize = bufferSize;
+            _cores = cores;
 
-                // before end reading set position
-                BaseStream.Seek((long)state.Index * _bufferSize, SeekOrigin.Begin);
-                var read = BaseStream.EndRead(asyncResult);
-                if (read < _bufferSize)
+            _mmf = MemoryMappedFile.CreateFromFile(_path, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
+        }
+
+        public void ReadParallel(Action<PortionChunkReader[]> callback)
+        {
+            const int cores = 4;
+            var threads = new ThreadWrapper[cores];
+            var chunkReaders = new PortionChunkReader[cores];
+
+            for (var i = 0; i < cores; i++)
+            {
+                chunkReaders[i] = new PortionChunkReader(i);
+                threads[i] = new ThreadWrapper(ReadDataFromSource);
+                threads[i].OnError += (source, e) =>
                 {
-                    chunk.MarkAsWithEmptySlots();
-                }
-                callback.Invoke(chunk);
-                threadsDone++;
-            }, _actualThreadsLimit, _maxThreadsLimit);
-
-            slt.StartSync();
-            
-            // StartSync part itself will work synchronously
-            // But for handling callbacks need additional functionality
-            while (threadsDone < _maxThreadsLimit)
-            {
-
+                    foreach (var t in threads)
+                    {
+                        if (Equals(t, source)) continue;
+                        t.BaseThread.Interrupt();
+                    }
+                };
             }
+
+            for (var i = 0; i < cores; i++)
+            {
+                threads[i].Start(chunkReaders[i]);
+            }
+
+            callback(chunkReaders);
+        }
+
+        private void ReadDataFromSource(object obj)
+        {
+            var reader = (PortionChunkReader)obj;
+
+            // the size which should process one thread
+            var currentThreadSize = (SourceSize / _cores);
+            currentThreadSize = (currentThreadSize / _bufferSize) * _bufferSize;
+            var portionSize = currentThreadSize;
+            if (reader.Index == _cores - 1)
+            {
+                portionSize = SourceSize - (currentThreadSize * (_cores - 1));
+            }
+
+            using var sourceStream = _mmf.CreateViewStream(reader.Index * currentThreadSize, portionSize, MemoryMappedFileAccess.Read);
+            var buffer = new byte[_bufferSize];
+            int read;
+
+            do
+            {
+                read = sourceStream.Read(buffer);
+                reader.SetData(buffer, read);
+                ExecuteOnRead(read);
+            } while (read > 0);
         }
 
         public void Dispose()
         {
-            //BaseStream?.Dispose();
+            _mmf.Dispose();
+        }
+
+        private void ExecuteOnRead(int read)
+        {
+            OnRead?.Invoke(read);
         }
     }
 }

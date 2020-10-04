@@ -7,6 +7,8 @@ using Veeam.Gzipper.Core.Configuration.Types;
 using Veeam.Gzipper.Core.Logging.Abstraction;
 using Veeam.Gzipper.Core.Streams;
 using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
+using Veeam.Gzipper.Core.Streams.Types;
+using Veeam.Gzipper.Core.Threads;
 
 namespace Veeam.Gzipper.Core.Commands
 {
@@ -25,73 +27,93 @@ namespace Veeam.Gzipper.Core.Commands
 
         public void StartSync(UserInputData input)
         {
-            // stream for reading from source
-            using var sourceFileStream = _streamFactory.CreateSourceFileStream(input.SourceFilePath);
-
-            // set chunk size
-            _settings.AutoSetChunkSize(sourceFileStream.Length);
-
-            // streams for compressing and saving in file
             using var targetFileStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
-            using var gzipStream = new GZipStream(targetFileStream, CompressionMode.Compress);
-
-            // gzip not support async writing. create synced stream 
-            var safeStream = Stream.Synchronized(gzipStream);
-
-            // write the source size at the beginning of compressed file
-            var sizeBuffer = BitConverter.GetBytes(sourceFileStream.Length);
-            safeStream.Write(sizeBuffer, 0, sizeBuffer.Length);
-
-            // write current available memory ( which can be changed from configs ) after file size
-            sizeBuffer = BitConverter.GetBytes(_settings.AvailableMemorySize);
-            safeStream.Write(sizeBuffer, 0, sizeBuffer.Length);
 
             // start async reading from the source by chunks. Chunks contains original position of partial data
-            using var chunkReader = new StreamChunkReader(sourceFileStream, _settings.ChunkSize, _settings.AvailableMemorySize);
+            using var chunkReader = new StreamChunkReader(input.SourceFilePath, _settings.ChunkSize, _settings.Cores);
+            var progress = SetupProgress(chunkReader);
+            progress.Start();
 
-            // count how many threads executed
-            var executedCount = 0;
-
-            // monitor progress
-            var progressThread = new Thread(() => ShowProgress(ref executedCount, chunkReader));
-            progressThread.Start();
-
-            try
+            chunkReader.ReadParallel((readers) =>
             {
-                chunkReader.Read(chunk =>
-                {
-                    safeStream.Write(chunk.Data, 0, chunk.Data.Length);
-                    executedCount++;
-                });
+                var threads = new ThreadWrapper[readers.Length];
 
-                // wait until all threads executed
-                while (executedCount < chunkReader.MaxThreadsLimit)
+                for (var i = 0; i < readers.Length; i++)
                 {
-
+                    threads[i] = new ThreadWrapper(PartialCompress);
                 }
-            }
-            finally
-            {
-                progressThread.Interrupt();
-            }
 
-            _logger.InfoStatic("100 %\n\n");
+                for (var i = 0; i < readers.Length; i++)
+                {
+                    threads[i].Start(readers[i]);
+                }
+
+                for (var i = 0; i < readers.Length; i++)
+                {
+                    while (!threads[i].IsCompleted)
+                    {
+                    }
+                    var tempPath = GetTempFileName(i);
+                    using (var fs = File.OpenRead(tempPath))
+                    {
+                        targetFileStream.Write(BitConverter.GetBytes(fs.Length));
+                        fs.CopyTo(targetFileStream);
+                    }
+                    File.Delete(tempPath);
+                }
+
+            });
+
+            progress.Interrupt();
+            _logger.InfoStatic("100 %\n");
         }
 
-        private void ShowProgress(ref int executedCount, StreamChunkReader reader)
+        private void PartialCompress(object obj)
         {
-            try
+            var reader = (PortionChunkReader)obj;
+
+            var tempFilePath = GetTempFileName(reader.Index);
+            using var targetStream = File.Open(tempFilePath, FileMode.OpenOrCreate, FileAccess.Write);
+            using var zipStream = new GZipStream(targetStream, CompressionMode.Compress);
+            var buffer = new byte[_settings.ChunkSize];
+
+            var read = reader.Read(buffer);
+            while (read > 0)
             {
-                while (executedCount < reader.MaxThreadsLimit)
-                {
-                    _logger.InfoStatic(Math.Round((executedCount / (double)reader.MaxThreadsLimit) * 100.0, 2) + " %");
-                    Thread.Sleep(100);
-                }
-            }
-            catch (ThreadInterruptedException)
-            {
-                // ignore ThreadInterruptedException
+                zipStream.Write(buffer, 0, read);
+                read = reader.Read(buffer);
             }
         }
+
+        private Thread SetupProgress(StreamChunkReader chunkReader)
+        {
+
+            var sourceSize = chunkReader.SourceSize;
+            long done = 0;
+            chunkReader.OnRead += read =>
+            {
+                done += read;
+            };
+
+            return new Thread(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        _logger.InfoStatic($"{ Math.Round(((double)done / sourceSize) * 100.0, 0)} %");
+                        Thread.Sleep(250);
+                    }
+                }
+                catch (ThreadInterruptedException)
+                {
+                    // ignore ThreadInterruptedException
+                }
+            });
+        }
+
+        private static string GetTempFileName(int i) => $"temp_compress_{i}.txt.zip";
+
+
     }
 }
