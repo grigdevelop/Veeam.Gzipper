@@ -12,7 +12,7 @@ namespace Veeam.Gzipper.Core.Streams.Factory
 
         public Stream CreateTargetFileStream(string targetFilePath)
         {
-            return File.Open(targetFilePath, FileMode.OpenOrCreate, FileAccess.Write);
+            return File.Open(targetFilePath, FileMode.Create, FileAccess.Write);
         }
     }
 }

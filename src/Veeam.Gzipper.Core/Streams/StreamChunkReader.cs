@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
-using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
 using Veeam.Gzipper.Core.Streams.Types;
 using Veeam.Gzipper.Core.Threads;
 
@@ -10,33 +9,43 @@ namespace Veeam.Gzipper.Core.Streams
     public class StreamChunkReader : IDisposable
     {
         private readonly string _path;
-        private readonly IStreamFactory _streamFactory;
         private readonly int _bufferSize;
         private readonly int _cores;
         private readonly MemoryMappedFile _mmf;
-        private readonly Stream _stream;
-        
-        public StreamChunkReader(string path, IStreamFactory streamFactory, int bufferSize, int cores)
+
+        private long? _sourceSize;
+        public long SourceSize
+        {
+            get
+            {
+                if (_sourceSize.HasValue) return _sourceSize.Value;
+                using var tempStream = File.OpenRead(_path);
+                _sourceSize = tempStream.Length;
+                return _sourceSize.Value;
+            }
+        }
+
+        public event Action<int> OnRead;
+
+        public StreamChunkReader(string path, int bufferSize, int cores)
         {
             _path = path;
-            _streamFactory = streamFactory;
             _bufferSize = bufferSize;
             _cores = cores;
 
-            _mmf = MemoryMappedFile.CreateFromFile(_path);
-            _stream = _mmf.CreateViewStream();
+            _mmf = MemoryMappedFile.CreateFromFile(_path, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
         }
 
         public void ReadParallel(Action<PortionChunkReader[]> callback)
         {
             const int cores = 4;
-            var threads = new ExThread[cores];
+            var threads = new ThreadWrapper[cores];
             var chunkReaders = new PortionChunkReader[cores];
 
             for (var i = 0; i < cores; i++)
             {
                 chunkReaders[i] = new PortionChunkReader(i);
-                threads[i] = new ExThread(ReadDataFromSource);
+                threads[i] = new ThreadWrapper(ReadDataFromSource);
                 threads[i].OnError += (source, e) =>
                 {
                     foreach (var t in threads)
@@ -59,21 +68,16 @@ namespace Veeam.Gzipper.Core.Streams
         {
             var reader = (PortionChunkReader)obj;
 
-            // create a separate stream 
-
-            var sourceSize = _stream.Length;
-
             // the size which should process one thread
-            var currentThreadSize = (sourceSize / _cores);
-            var endSize = (reader.Index == _cores - 1) ? 0 : currentThreadSize;
+            var currentThreadSize = (SourceSize / _cores);
+            currentThreadSize = (currentThreadSize / _bufferSize) * _bufferSize;
+            var portionSize = currentThreadSize;
+            if (reader.Index == _cores - 1)
+            {
+                portionSize = SourceSize - (currentThreadSize * (_cores - 1));
+            }
 
-            // before end reading set position
-            using var sourceStream = _mmf.CreateViewStream(reader.Index * currentThreadSize, endSize);
-
-            // save size
-            reader.SetData(BitConverter.GetBytes(sourceStream.Length), 8);
-
-            //var done = 0L;
+            using var sourceStream = _mmf.CreateViewStream(reader.Index * currentThreadSize, portionSize, MemoryMappedFileAccess.Read);
             var buffer = new byte[_bufferSize];
             int read;
 
@@ -81,13 +85,18 @@ namespace Veeam.Gzipper.Core.Streams
             {
                 read = sourceStream.Read(buffer);
                 reader.SetData(buffer, read);
+                ExecuteOnRead(read);
             } while (read > 0);
         }
 
         public void Dispose()
         {
-            _stream.Dispose();
             _mmf.Dispose();
+        }
+
+        private void ExecuteOnRead(int read)
+        {
+            OnRead?.Invoke(read);
         }
     }
 }

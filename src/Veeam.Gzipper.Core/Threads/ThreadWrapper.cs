@@ -3,11 +3,11 @@ using System.Threading;
 
 namespace Veeam.Gzipper.Core.Threads
 {
-    public class ExThread
+    public class ThreadWrapper
     {
         public Thread BaseThread { get; }
 
-        public event Action<ExThread, Exception> OnError;
+        public event Action<ThreadWrapper, Exception> OnError;
 
         public event Action<object> OnCompleted;
 
@@ -15,7 +15,7 @@ namespace Veeam.Gzipper.Core.Threads
 
         public Exception Error { get; private set; }
 
-        public ExThread(ParameterizedThreadStart start)
+        public ThreadWrapper(ParameterizedThreadStart start)
         {
             if (start == null) throw new ArgumentNullException(nameof(start));
 
@@ -55,7 +55,7 @@ namespace Veeam.Gzipper.Core.Threads
 
         public override bool Equals(object? obj)
         {
-            return obj is ExThread other && BaseThread.Equals(other.BaseThread);
+            return obj is ThreadWrapper other && BaseThread.Equals(other.BaseThread);
         }
     }
 }

@@ -1,12 +1,13 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
-using System.Text;
+using System.IO.MemoryMappedFiles;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Configuration.Types;
+using Veeam.Gzipper.Core.Extensions;
 using Veeam.Gzipper.Core.Logging.Abstraction;
-using Veeam.Gzipper.Core.Streams;
 using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
+using Veeam.Gzipper.Core.Threads;
 
 namespace Veeam.Gzipper.Core.Commands
 {
@@ -27,59 +28,72 @@ namespace Veeam.Gzipper.Core.Commands
         {
             // create source streams
             using var sourceStream = _streamFactory.CreateSourceFileStream(input.SourceFilePath);
-            byte[] sizeBuffer = new byte[8];
-            sourceStream.Read(sizeBuffer);
-            var currentThreadSize = BitConverter.ToInt64(sizeBuffer);
-            Console.WriteLine("The size is: " + currentThreadSize);
+            using var mmf = MemoryMappedFile.CreateFromFile((FileStream)sourceStream, null, 0, MemoryMappedFileAccess.Read, HandleInheritability.Inheritable, false);
 
-            using var zipStream = new GZipStream(sourceStream, CompressionMode.Decompress);
-
-            var _bufferSize = _settings.ChunkSize;
-
-            var done = 0L;
-            var buffer = new byte[_bufferSize];
-            int read;
-            sourceStream.Seek(8, SeekOrigin.Begin);
-            while (done < currentThreadSize - _bufferSize)
+            var portionSizes = new long[_settings.Cores];
+            portionSizes[0] = sourceStream.ReadInt64();
+            for (var i = 1; i < portionSizes.Length; i++)
             {
-                read = zipStream.Read(buffer, 0, buffer.Length);
-                //reader.SetData(buffer, read);
-                Console.WriteLine(Encoding.Default.GetString(buffer));
-                done += read;
+                sourceStream.Seek(portionSizes[i - 1], SeekOrigin.Current);
+                portionSizes[i] = sourceStream.ReadInt64();
             }
 
-            var left = (int)(currentThreadSize - done);
-            read = zipStream.Read(buffer, 0, left);
-            Console.WriteLine(Encoding.Default.GetString(buffer));
+            var offsets = new long[_settings.Cores];
+            offsets[0] = sizeof(long);
+            for (var i = 1; i < offsets.Length; i++)
+            {
+                offsets[i] = offsets[i - 1] + portionSizes[i - 1] + sizeof(long);
+            }
 
-            //using var zipStream = new GZipStream(sourceStream, CompressionMode.Decompress);
+            var threads = new ThreadWrapper[_settings.Cores];
+            for (var i = 0; i < threads.Length; i++)
+            {
+                threads[i] = new ThreadWrapper(DecompressPortion);
+            }
 
-            // create target streams
-            //using var targetStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
+            for (var i = 0; i < _settings.Cores; i++)
+            {
+                var offset = offsets[i];
+                var size = portionSizes[i];
 
+                var view = mmf.CreateViewStream(offset, size, MemoryMappedFileAccess.Read);
+                var zipStream = new GZipStream(view, CompressionMode.Decompress);
 
+                threads[i].Start(new Tuple<Stream, int>(zipStream, i));
+            }
 
-            // create chunk reader
-            //var chunkReader = new ChunkedStreamReader(zipStream, _settings.ChunkSize);
+            using var targetStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
+            for (var i = 0; i < _settings.Cores; i++)
+            {
+                var thread = threads[i];
+                while (!thread.IsCompleted)
+                {
 
+                }
+                using (var fs = File.OpenRead($"temp_decompress_{i}"))
+                {
+                    fs.CopyTo(targetStream);
+                }
+                File.Delete($"temp_decompress_{i}");
+            }
+        }
 
-            //chunkReader.ReadParallel(reader =>
-            //{
-            //    //var data = reader.Read();
-            //    //var index = reader.Index;
-            //    //while(data != null)
-            //    //{
+        private void DecompressPortion(object obj)
+        {
+            var (sourceStream, index) = (Tuple<Stream, int>)obj;
 
-            //    //}
-            //});
+            using (sourceStream)
+            {
+                using var tempTargetStream = File.Open($"temp_decompress_{index}", FileMode.Create, FileAccess.Write);
+                var buffer = new byte[_settings.ChunkSize];
+                var read = sourceStream.Read(buffer);
 
-            //chunkReader.ReadParallel(chunk =>
-            //{
-            //    safeStream.Seek(chunk.Position, SeekOrigin.Begin);
-            //    safeStream.Write(chunk.Data, 0, chunk.Data.Length);
-
-            //    executed++;
-            //});
+                while (read > 0)
+                {
+                    tempTargetStream.Write(buffer, 0, read);
+                    read = sourceStream.Read(buffer);
+                }
+            }
         }
     }
 }

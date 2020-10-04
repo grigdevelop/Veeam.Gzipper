@@ -3,7 +3,7 @@ using Veeam.Gzipper.Core.Configuration.Types;
 using Veeam.Gzipper.Core.Constants;
 using Veeam.Gzipper.Core.IO;
 
-namespace Veeam.Gzipper.Core.Streams
+namespace Veeam.Gzipper.Core.Configuration
 {
     public class GzipperUserInputReader
     {

@@ -1,5 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
+using Veeam.Gzipper.Core.Configuration;
 using Veeam.Gzipper.Core.Constants;
 using Veeam.Gzipper.Core.IO;
 using Veeam.Gzipper.Core.Streams;
