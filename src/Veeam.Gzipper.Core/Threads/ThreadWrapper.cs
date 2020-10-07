@@ -5,21 +5,37 @@ namespace Veeam.Gzipper.Core.Threads
 {
     public class ThreadWrapper
     {
+        #region Fields
+
+        private readonly AutoResetEvent _threadCompleteResetEvent;
+
+        #endregion
+
+        #region Properties
+
         public Thread BaseThread { get; }
-
-        public event Action<ThreadWrapper, Exception> OnError;
-
-        public event Action<object> OnCompleted;
 
         public bool IsCompleted { get; private set; }
 
         public Exception Error { get; private set; }
+
+        #endregion
+
+        #region Events
+
+        public event Action<ThreadWrapper, Exception> OnError;
+
+        #endregion
+
+        #region Public methods
 
         public ThreadWrapper(ParameterizedThreadStart start)
         {
             if (start == null) throw new ArgumentNullException(nameof(start));
 
             BaseThread = new Thread((obj) => ExceptionHandlerWrapper(start, obj));
+
+            _threadCompleteResetEvent = new AutoResetEvent(false);
         }
 
         public void Start(object obj)
@@ -27,24 +43,11 @@ namespace Veeam.Gzipper.Core.Threads
             BaseThread.Start(obj);
         }
 
-        private void ExceptionHandlerWrapper(ParameterizedThreadStart start, object? obj)
+        public void Wait()
         {
-            try
-            {
-                start(obj);
-                IsCompleted = true;
-                OnCompleted?.Invoke(this);
-            }
-            catch (ThreadInterruptedException)
-            {
-                // ignore ThreadInterruptedException
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                Error = e;
-                OnError?.Invoke(this, e);
-            }
+            if (IsCompleted)
+                return;
+            _threadCompleteResetEvent.WaitOne();
         }
 
 
@@ -57,5 +60,27 @@ namespace Veeam.Gzipper.Core.Threads
         {
             return obj is ThreadWrapper other && BaseThread.Equals(other.BaseThread);
         }
+
+        #endregion
+
+        #region Private methods
+
+
+        private void ExceptionHandlerWrapper(ParameterizedThreadStart start, object? obj)
+        {
+            try
+            {
+                start(obj);
+                IsCompleted = true;
+                _threadCompleteResetEvent.Set();
+            }
+            catch (Exception e)
+            {
+                Error = e;
+                OnError?.Invoke(this, e);
+            }
+        }
+
+        #endregion
     }
 }

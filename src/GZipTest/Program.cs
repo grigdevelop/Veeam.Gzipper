@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using Veeam.Gzipper.Cmd.IO;
 using Veeam.Gzipper.Cmd.Logging;
 using Veeam.Gzipper.Core;
@@ -15,16 +16,18 @@ namespace GZipTest
     {
         static void Main(string[] args)
         {
+            args = new[] { "compress", "source.txt", "target.zip" };
+
             // dependencies
             IInputOutput io = new ConsoleInputOutput();
             ILogger logger = new ConsoleLogger();
             IStreamFactory streamFactory = new CompressorStreamFactory();
             ICompressorSettings settings = new CompressorSettings();
-
             var app = new CompressorApplication(io, logger, streamFactory, settings);
             app.Execute(args);
 
             Console.ReadLine();
+            Stack s = new Stack();
         }
     }
 }

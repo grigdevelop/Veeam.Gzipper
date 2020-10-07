@@ -85,7 +85,7 @@ namespace Veeam.Gzipper.Core.Commands
             using (sourceStream)
             {
                 using var tempTargetStream = File.Open($"temp_decompress_{index}", FileMode.Create, FileAccess.Write);
-                var buffer = new byte[_settings.ChunkSize];
+                var buffer = new byte[_settings.BufferSize];
                 var read = sourceStream.Read(buffer);
 
                 while (read > 0)
