@@ -4,31 +4,43 @@ namespace Veeam.Gzipper.Core.IO
 {
     public static class FileInfoHelpers
     {
-        public static long[] GetPartialSizeList(this FileInfo fi, int capacity, int bufferSize)
+        public static StreamPosition[] GetPartialSizeList(this long length, int capacity, int bufferSize)
         {
-            var length = fi.Length;
-
             if (bufferSize >= length)
             {
-                return new[] { length };
+                return new[] { new StreamPosition(0, length),  };
             }
 
-            var sizeList = new long[capacity];
+            var sizeList = new StreamPosition[capacity];
 
             for (var i = 0; i < capacity; i++)
             {
-                var currentThreadSize = (length / capacity);
-                currentThreadSize = (currentThreadSize / bufferSize) * bufferSize;
-
+                var size = (length / capacity);
+                size = (size / bufferSize) * bufferSize;
+                var offset = size * i;
                 if (i == capacity - 1)
                 {
-                    currentThreadSize = length - (currentThreadSize * (capacity - 1));
+                    size = length - (size * (capacity - 1));
                 }
+                
+                sizeList[i] = new StreamPosition(offset, size);                    
+                
 
-                sizeList[i] = currentThreadSize;
             }
 
             return sizeList;
+        }
+    }
+
+    public class StreamPosition
+    {
+        public long Offset { get; }
+        public long Size { get; }
+
+        public StreamPosition(long offset, long size)
+        {
+            Offset = offset;
+            Size = size;
         }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections;
+using System.IO;
+using System.Text;
 using Veeam.Gzipper.Cmd.IO;
 using Veeam.Gzipper.Cmd.Logging;
 using Veeam.Gzipper.Core;

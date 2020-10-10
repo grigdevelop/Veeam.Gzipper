@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.IO.MemoryMappedFiles;
 using System.Threading;
+using Veeam.Gzipper.Core.IO;
 
 namespace Veeam.Gzipper.Core.Streams
 {
@@ -10,8 +11,7 @@ namespace Veeam.Gzipper.Core.Streams
     {
         private readonly MemoryMappedFile _mmf;
         private readonly string _targetFilePath;
-        private readonly long _offset;
-        private readonly long _size;
+        private readonly StreamPosition _position;
         private readonly int _bufferSize;
 
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
@@ -22,12 +22,13 @@ namespace Veeam.Gzipper.Core.Streams
 
         private Exception _error;
 
-        public CompressorPartial(MemoryMappedFile mmf, string targetFilePath, long offset, long size, int bufferSize)
+        public string TargetFilePath => _targetFilePath;
+
+        public CompressorPartial(MemoryMappedFile mmf, string targetFilePath, StreamPosition position, int bufferSize)
         {
             _mmf = mmf;
             _targetFilePath = targetFilePath;
-            _offset = offset;
-            _size = size;
+            _position = position;
             _bufferSize = bufferSize;
 
             _asyncResult = new CompressorAsyncResult(_resetEvent);
@@ -45,6 +46,7 @@ namespace Veeam.Gzipper.Core.Streams
                 }
                 catch (Exception e)
                 {
+                    DeleteSource();
                     _error = e;
                     throw _error;
                 }
@@ -62,16 +64,22 @@ namespace Veeam.Gzipper.Core.Streams
         {
             _cancellationTokenSource.Cancel();
             Wait();
+            HandleException();
         }
 
-        public bool Wait()
+        private void HandleException()
         {
-            return _resetEvent.WaitOne();
+            if (_error != null) throw _error;
+        }
+
+        public void Wait()
+        {
+            _asyncResult.AsyncWaitHandle.WaitOne();
         }
 
         private void Compress()
-        {
-            using var sourceStream = _mmf.CreateViewStream(_offset, _size, MemoryMappedFileAccess.Read);
+        { 
+            using var sourceStream = _mmf.CreateViewStream(_position.Offset, _position.Size, MemoryMappedFileAccess.Read);
             using var targetStream = File.Open(_targetFilePath, FileMode.Create, FileAccess.Write);
             using var compressorStream = new GZipStream(targetStream, CompressionMode.Compress);
 
@@ -82,6 +90,18 @@ namespace Veeam.Gzipper.Core.Streams
                 compressorStream.Write(buffer, 0, readNum);
                 readNum = sourceStream.Read(buffer);
             }
+        }
+
+        public void DeleteSource()
+        {
+            if(File.Exists(_targetFilePath))
+                File.Delete(_targetFilePath);
+        }
+
+        public void CopyTo(Stream targetStream)
+        {
+            using var fs = File.OpenRead(_targetFilePath);
+            fs.CopyTo(targetStream);
         }
 
         #region Neasted classes
