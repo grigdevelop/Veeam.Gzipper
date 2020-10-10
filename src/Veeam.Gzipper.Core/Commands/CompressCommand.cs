@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
@@ -6,6 +7,7 @@ using System.IO.MemoryMappedFiles;
 using System.Threading;
 using Veeam.Gzipper.Core.Configuration.Abstraction;
 using Veeam.Gzipper.Core.Configuration.Types;
+using Veeam.Gzipper.Core.IO;
 using Veeam.Gzipper.Core.Logging.Abstraction;
 using Veeam.Gzipper.Core.Streams;
 using Veeam.Gzipper.Core.Streams.Factory.Abstractions;
@@ -56,6 +58,37 @@ namespace Veeam.Gzipper.Core.Commands
         }
 
         public void StartSync(UserInputData input)
+        {
+            //using var targetFileStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
+
+            var fi = new FileInfo(input.SourceFilePath);
+            var partialSizeList = fi.GetPartialSizeList(_settings.Cores, _settings.BufferSize);
+
+            //using var sourceFileStream = _streamFactory.CreateSourceFileStream(input.SourceFilePath);
+            using var mmf = MemoryMappedFile.CreateFromFile(input.SourceFilePath, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
+
+            var compressors = new CompressorPartial[partialSizeList.Length];
+            for (var i = 0; i < partialSizeList.Length; i++)
+            {
+                compressors[i] = new CompressorPartial(mmf, $"temp_{i}.txt.zip", partialSizeList[i] * i, partialSizeList[i], _settings.BufferSize);
+            }
+
+            var asyncResults = new IAsyncResult[partialSizeList.Length];
+            for (var i = 0; i < compressors.Length; i++)
+                asyncResults[i] = compressors[i].Start();
+
+            foreach (var asyncResult in asyncResults)
+                asyncResult.AsyncWaitHandle.WaitOne();
+
+            // first stream can start a write
+            // the second stream 
+
+
+        }
+
+
+
+        public void StartSync1(UserInputData input)
         {
             using var targetFileStream = _streamFactory.CreateTargetFileStream(input.TargetFilePath);
 
@@ -109,14 +142,14 @@ namespace Veeam.Gzipper.Core.Commands
 
         private void Compress(object obj)
         {
-            var (option, mmf) = (ValueTuple<CompressParallelOption, MemoryMappedFile>)obj;
-            using var sourceStream = mmf.CreateViewStream(option.Offset, option.PortionSize, MemoryMappedFileAccess.Read);
-            using var targetStream = _streamFactory.CreateTargetFileStream(GetTempFileName(option.Index));
+            var (index, partiallyFileReader, cancellationToken) = (ValueTuple<int, PartiallyFileReader, CancellationToken>)obj;
+            using var sourceStream = partiallyFileReader.CreatePartialStream(index);
+            using var targetStream = _streamFactory.CreateTargetFileStream(GetTempFileName(index));
             using var zipStream = new GZipStream(targetStream, CompressionMode.Compress);
 
             var buffer = new byte[_settings.BufferSize];
             var numRead = sourceStream.Read(buffer);
-            while (numRead > 0)
+            while (numRead > 0 && !cancellationToken.IsCancellationRequested)
             {
                 zipStream.Write(buffer, 0, numRead);
                 numRead = sourceStream.Read(buffer);
@@ -145,11 +178,20 @@ namespace Veeam.Gzipper.Core.Commands
 
     }
 
-    public class PartialCompressorCollection
+    class MyClass : IDisposable
     {
-        public PartialCompressorCollection(Stream sourceStream)
+        private readonly PartiallyFileReader _partiallyFileReader;
+
+        public MyClass(PartiallyFileReader partiallyFileReader)
         {
-            
+            _partiallyFileReader = partiallyFileReader ?? throw new ArgumentNullException(nameof(partiallyFileReader));
+        }
+
+        public void Dispose()
+        {
+            _partiallyFileReader.Dispose();
         }
     }
+
+
 }
