@@ -6,13 +6,13 @@
     public interface ICompressorSettings
     {
         /// <summary>
-        /// Gets the chunk size
+        /// Gets the buffer size
         /// </summary>
-        int ChunkSize { get; }
-        
+        int BufferSize { get; }
+
         /// <summary>
         /// Gets the available cores count
         /// </summary>
-        int Cores { get;  }
+        int Cores { get; }
     }
 }
